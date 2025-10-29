@@ -23,7 +23,7 @@ export async function processMedia(formData: FormData): Promise<{ data: { transc
       return { data: null, error: 'A URL da API não está configurada.' };
     }
 
-    const response = await fetch(`https://${apiUrl}/api/transcribe`, {
+    const response = await fetch(`${apiUrl}/api/transcribe`, {
       method: 'POST',
       body: apiFormData,
     });
@@ -36,7 +36,8 @@ export async function processMedia(formData: FormData): Promise<{ data: { transc
         errorMessage = errorData.error || JSON.stringify(errorData);
       } catch (e) {
         // The response was not JSON, use the raw text
-        errorMessage = await response.text();
+        const rawText = await response.text();
+        errorMessage = rawText || errorMessage;
       }
       console.error("API Error:", errorMessage);
       return { data: null, error: `A requisição para a API falhou: ${errorMessage}` };
