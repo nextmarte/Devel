@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Mic, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,25 @@ import Logo from "@/components/logo";
 import LoadingSpinner from "@/components/loading-spinner";
 import TranscriptionDisplay from "@/components/transcription-display";
 import { useToast } from "@/hooks/use-toast";
+import AudioPlayer from "@/components/audio-player";
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Clean up the object URL when the component unmounts
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
 
   const handleProcess = async (formData: FormData) => {
     setIsProcessing(true);
@@ -53,6 +65,12 @@ export default function Home() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      const newAudioUrl = URL.createObjectURL(file);
+      setAudioUrl(newAudioUrl);
+
       const formData = new FormData();
       formData.append('file', file);
       handleProcess(formData);
@@ -98,13 +116,16 @@ export default function Home() {
             <CardTitle className="text-2xl font-headline">Result</CardTitle>
           </CardHeader>
           <CardContent className="h-full">
-            <div className="w-full h-full min-h-[200px] p-4 border border-dashed border-border rounded-lg flex items-center justify-center bg-background/50">
+            <div className="w-full h-full min-h-[200px] p-4 border border-dashed border-border rounded-lg flex flex-col items-center justify-center bg-background/50">
               {isProcessing ? (
                 <LoadingSpinner />
               ) : error ? (
                 <p className="text-destructive">{error}</p>
               ) : transcription ? (
-                <TranscriptionDisplay text={transcription} />
+                <div className="w-full flex flex-col gap-4">
+                  {audioUrl && <AudioPlayer src={audioUrl} />}
+                  <TranscriptionDisplay text={transcription} />
+                </div>
               ) : (
                 <p className="text-muted-foreground">Your transcription will appear here.</p>
               )}
