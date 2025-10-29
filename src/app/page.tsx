@@ -17,7 +17,9 @@ import { Label } from "@/components/ui/label";
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [transcription, setTranscription] = useState<string | null>(null);
+  const [rawTranscription, setRawTranscription] = useState<string | null>(null);
+  const [correctedTranscription, setCorrectedTranscription] = useState<string | null>(null);
+  const [identifiedTranscription, setIdentifiedTranscription] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -41,7 +43,9 @@ export default function Home() {
   const handleProcess = async (formData: FormData) => {
     setIsProcessing(true);
     setError(null);
-    setTranscription(null);
+    setRawTranscription(null);
+    setCorrectedTranscription(null);
+    setIdentifiedTranscription(null);
     setSummary(null);
 
     formData.append('generateSummary', String(generateSummary));
@@ -56,7 +60,9 @@ export default function Home() {
         description: result.error,
       });
     } else if (result.data) {
-      setTranscription(result.data.transcription);
+      setRawTranscription(result.data.rawTranscription);
+      setCorrectedTranscription(result.data.correctedTranscription);
+      setIdentifiedTranscription(result.data.identifiedTranscription);
       setSummary(result.data.summary);
     }
 
@@ -100,7 +106,9 @@ export default function Home() {
         mediaRecorderRef.current.start();
         setIsRecording(true);
         setError(null);
-        setTranscription(null);
+        setRawTranscription(null);
+        setCorrectedTranscription(null);
+        setIdentifiedTranscription(null);
         setSummary(null);
       } catch (err) {
         console.error("Error accessing microphone:", err);
@@ -134,7 +142,7 @@ export default function Home() {
     }
   };
   
-  const hasResult = transcription || summary;
+  const hasResult = identifiedTranscription || summary;
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-background text-foreground p-4 sm:p-8">
@@ -201,13 +209,17 @@ export default function Home() {
           <>
             {audioUrl && <AudioPlayer src={audioUrl} />}
             {summary && <SummaryDisplay summary={summary} />}
-            {transcription && (
+            {identifiedTranscription && (
               <Card className="shadow-lg shadow-primary/10 border-border">
                 <CardHeader>
                   <CardTitle className="text-2xl font-headline">Transcrição Completa</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <TranscriptionDisplay text={transcription} />
+                  <TranscriptionDisplay 
+                    raw={rawTranscription || undefined}
+                    corrected={correctedTranscription || undefined}
+                    identified={identifiedTranscription || undefined}
+                  />
                 </CardContent>
               </Card>
             )}

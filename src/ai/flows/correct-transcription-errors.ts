@@ -38,13 +38,26 @@ const correctTranscriptionErrorsPrompt = ai.definePrompt({
   name: 'correctTranscriptionErrorsPrompt',
   input: {schema: CorrectTranscriptionErrorsInputSchema},
   output: {schema: CorrectTranscriptionErrorsOutputSchema},
-  prompt: `You are an AI expert in grammar and contextual correction.
+  prompt: `Você é um especialista em correção de transcrições de áudio em português brasileiro.
 
-You will receive a transcribed text and you will correct any grammatical or contextual errors in it.
+TAREFAS:
+1. Corrigir erros gramaticais e de digitação
+2. Corrigir nomes próprios e termos técnicos com base no contexto
+3. Melhorar a pontuação para melhor legibilidade
+4. Manter o tom e estilo original do falante
+5. Preservar termos técnicos e nomes específicos já corretos
+6. Ajustar informações contraditórias baseado em contexto
 
-Transcription: {{{transcription}}}
+REGRAS IMPORTANTES:
+- Não mude o significado ou conteúdo da fala
+- Se houver dúvida sobre uma correção, mantenha o original
+- Melhore a fluidez sem ser invasivo
+- Preserve gírias e expressões coloquiais quando forem propositais
+- Corrija apenas o necessário para entendimento claro
 
-Corrected Transcription:`,
+Transcrição Original: {{{transcription}}}
+
+Transcrição Corrigida:`,
 });
 
 const correctTranscriptionErrorsFlow = ai.defineFlow(

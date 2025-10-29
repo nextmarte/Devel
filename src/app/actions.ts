@@ -4,7 +4,7 @@ import { correctTranscriptionErrors } from '@/ai/flows/correct-transcription-err
 import { identifySpeakers } from '@/ai/flows/identify-speakers-in-text';
 import { summarizeText } from '@/ai/flows/summarize-text';
 
-export async function processMedia(formData: FormData): Promise<{ data: { transcription: string; summary: string | null } | null; error: string | null; }> {
+export async function processMedia(formData: FormData): Promise<{ data: { rawTranscription: string; correctedTranscription: string; identifiedTranscription: string; summary: string | null } | null; error: string | null; }> {
   try {
     const file = formData.get('file') as File;
     const generateSummary = formData.get('generateSummary') === 'true';
@@ -71,7 +71,15 @@ export async function processMedia(formData: FormData): Promise<{ data: { transc
     }
 
 
-    return { data: { transcription: identifiedText, summary: summary }, error: null };
+    return { 
+      data: { 
+        rawTranscription: transcriptionText,
+        correctedTranscription: correctedResult.correctedTranscription,
+        identifiedTranscription: identifiedText,
+        summary: summary 
+      }, 
+      error: null 
+    };
   } catch (error: any) {
     console.error("Error processing media:", error);
     return { data: null, error: error.message || "Falha ao processar a transcrição. Por favor, tente novamente." };
