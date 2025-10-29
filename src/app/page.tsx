@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Mic, Upload } from "lucide-react";
+import { Mic, Upload, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,9 +17,12 @@ export default function Home() {
   const [transcription, setTranscription] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     // Clean up the object URL when the component unmounts
@@ -51,11 +54,55 @@ export default function Home() {
     setIsProcessing(false);
   };
 
-  const handleRecord = () => {
-    toast({
-      title: "Demo Feature",
-      description: "Audio recording is not yet implemented.",
-    });
+  const handleRecord = async () => {
+    if (isRecording) {
+      // Stop recording
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      // Start recording
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        audioChunksRef.current = [];
+
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          audioChunksRef.current.push(event.data);
+        };
+
+        mediaRecorderRef.current.onstop = () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          const audioFile = new File([audioBlob], "recording.webm", { type: "audio/webm" });
+          
+          if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+          }
+          const newAudioUrl = URL.createObjectURL(audioBlob);
+          setAudioUrl(newAudioUrl);
+          
+          const formData = new FormData();
+          formData.append('file', audioFile);
+          handleProcess(formData);
+
+          // Stop all tracks on the stream to turn off the microphone light
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorderRef.current.start();
+        setIsRecording(true);
+        setError(null);
+        setTranscription(null);
+      } catch (err) {
+        console.error("Error accessing microphone:", err);
+        const errorMessage = "Could not access microphone. Please check your browser permissions.";
+        setError(errorMessage);
+        toast({
+          variant: "destructive",
+          title: "Microphone Error",
+          description: errorMessage,
+        });
+      }
+    }
   };
 
   const handleUploadClick = () => {
@@ -93,10 +140,10 @@ export default function Home() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Button onClick={handleRecord} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
-                <Mic className="w-8 h-8 mr-4" />
-                Record Audio
+                {isRecording ? <Square className="w-8 h-8 mr-4 animate-pulse" /> : <Mic className="w-8 h-8 mr-4" />}
+                {isRecording ? "Stop Recording" : "Record Audio"}
               </Button>
-              <Button onClick={handleUploadClick} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button onClick={handleUploadClick} disabled={isProcessing || isRecording} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
                 <Upload className="w-8 h-8 mr-4" />
                 Upload Media
               </Button>
