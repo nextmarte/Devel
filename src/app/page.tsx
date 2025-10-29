@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Mic, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,14 @@ export default function Home() {
   const [transcription, setTranscription] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleProcess = async () => {
+  const handleProcess = async (formData: FormData) => {
     setIsProcessing(true);
     setError(null);
     setTranscription(null);
 
-    const result = await processMedia();
+    const result = await processMedia(formData);
     
     if (result.error) {
       setError(result.error);
@@ -39,21 +40,23 @@ export default function Home() {
   };
 
   const handleRecord = () => {
-    // A real implementation would use MediaRecorder API.
     toast({
       title: "Demo Feature",
-      description: "Audio recording is simulated. Proceeding with a sample transcription.",
+      description: "Audio recording is not yet implemented.",
     });
-    handleProcess();
   };
 
-  const handleUpload = () => {
-    // A real implementation would handle file uploads.
-    toast({
-      title: "Demo Feature",
-      description: "File upload is simulated. Proceeding with a sample transcription.",
-    });
-    handleProcess();
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      handleProcess(formData);
+    }
   };
 
   return (
@@ -75,10 +78,17 @@ export default function Home() {
                 <Mic className="w-8 h-8 mr-4" />
                 Record Audio
               </Button>
-              <Button onClick={handleUpload} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button onClick={handleUploadClick} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
                 <Upload className="w-8 h-8 mr-4" />
                 Upload Media
               </Button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange}
+                className="hidden" 
+                accept="audio/*,video/*"
+              />
             </div>
           </CardContent>
         </Card>
