@@ -20,7 +20,10 @@ import DiffView from "@/components/diff-view";
 import TranscriptionActions from "@/components/transcription-actions";
 import TranscriptionHistory from "@/components/transcription-history";
 import ThemeToggle from "@/components/theme-toggle";
-import { TranscriptionData, TranscriptionEdit } from "@/lib/transcription-types";
+import TranscriptionAnalytics from "@/components/transcription-analytics";
+import BookmarkManager from "@/components/bookmark-manager";
+import NoteManager from "@/components/note-manager";
+import { TranscriptionData, TranscriptionEdit, Bookmark, Note } from "@/lib/transcription-types";
 import { saveTranscription, updateTranscription } from "@/lib/transcription-storage";
 
 export default function Home() {
@@ -37,6 +40,8 @@ export default function Home() {
   const [currentTranscriptionId, setCurrentTranscriptionId] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState<number>(0);
   const [fileName, setFileName] = useState<string>('');
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,10 +110,14 @@ export default function Home() {
           identifiedTranscription: result.data.identifiedTranscription,
           summary: result.data.summary,
           fileName: fileName,
+          bookmarks: [],
+          notes: [],
         };
         
         saveTranscription(transcriptionData);
         setCurrentTranscriptionId(transcriptionData.id);
+        setBookmarks([]);
+        setNotes([]);
       }
     } finally {
       setIsProcessing(false);
@@ -204,6 +213,8 @@ export default function Home() {
     setCurrentTranscriptionId(null);
     setFileName('');
     setAudioDuration(0);
+    setBookmarks([]);
+    setNotes([]);
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
@@ -218,6 +229,8 @@ export default function Home() {
     setCurrentTranscriptionId(transcription.id);
     setFileName(transcription.fileName || '');
     setAudioDuration(transcription.duration);
+    setBookmarks(transcription.bookmarks || []);
+    setNotes(transcription.notes || []);
     setError(null);
     
     toast({
@@ -234,6 +247,72 @@ export default function Home() {
         identifiedTranscription: editedText,
         edits: edits,
       });
+    }
+  };
+
+  const handleAddBookmark = (bookmark: Omit<Bookmark, 'id'>) => {
+    const newBookmark: Bookmark = {
+      ...bookmark,
+      id: Date.now().toString(),
+    };
+    const updatedBookmarks = [...bookmarks, newBookmark];
+    setBookmarks(updatedBookmarks);
+    
+    if (currentTranscriptionId) {
+      updateTranscription(currentTranscriptionId, { bookmarks: updatedBookmarks });
+    }
+  };
+
+  const handleDeleteBookmark = (id: string) => {
+    const updatedBookmarks = bookmarks.filter(b => b.id !== id);
+    setBookmarks(updatedBookmarks);
+    
+    if (currentTranscriptionId) {
+      updateTranscription(currentTranscriptionId, { bookmarks: updatedBookmarks });
+    }
+  };
+
+  const handleUpdateBookmark = (id: string, updates: Partial<Bookmark>) => {
+    const updatedBookmarks = bookmarks.map(b => 
+      b.id === id ? { ...b, ...updates } : b
+    );
+    setBookmarks(updatedBookmarks);
+    
+    if (currentTranscriptionId) {
+      updateTranscription(currentTranscriptionId, { bookmarks: updatedBookmarks });
+    }
+  };
+
+  const handleAddNote = (note: Omit<Note, 'id'>) => {
+    const newNote: Note = {
+      ...note,
+      id: Date.now().toString(),
+    };
+    const updatedNotes = [...notes, newNote];
+    setNotes(updatedNotes);
+    
+    if (currentTranscriptionId) {
+      updateTranscription(currentTranscriptionId, { notes: updatedNotes });
+    }
+  };
+
+  const handleDeleteNote = (id: string) => {
+    const updatedNotes = notes.filter(n => n.id !== id);
+    setNotes(updatedNotes);
+    
+    if (currentTranscriptionId) {
+      updateTranscription(currentTranscriptionId, { notes: updatedNotes });
+    }
+  };
+
+  const handleUpdateNote = (id: string, updates: Partial<Note>) => {
+    const updatedNotes = notes.map(n => 
+      n.id === id ? { ...n, ...updates } : n
+    );
+    setNotes(updatedNotes);
+    
+    if (currentTranscriptionId) {
+      updateTranscription(currentTranscriptionId, { notes: updatedNotes });
     }
   };
   
@@ -309,6 +388,14 @@ export default function Home() {
         {!isProcessing && !error && hasResult && (
           <>
             {audioUrl && <AudioPlayer src={audioUrl} />}
+            {rawTranscription && correctedTranscription && identifiedTranscription && (
+              <TranscriptionAnalytics
+                rawTranscription={rawTranscription}
+                correctedTranscription={correctedTranscription}
+                identifiedTranscription={identifiedTranscription}
+                duration={audioDuration}
+              />
+            )}
             {summary && <SummaryDisplay summary={summary} />}
             {identifiedTranscription && (
               <Card className="shadow-lg shadow-primary/10 border-border">
@@ -319,13 +406,35 @@ export default function Home() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <EnhancedTranscriptionDisplay 
-                    raw={rawTranscription || undefined}
-                    corrected={correctedTranscription || undefined}
-                    identified={identifiedTranscription || undefined}
-                    onEdit={handleEditTranscription}
-                    editable={true}
-                  />
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="lg:col-span-2">
+                      <EnhancedTranscriptionDisplay 
+                        raw={rawTranscription || undefined}
+                        corrected={correctedTranscription || undefined}
+                        identified={identifiedTranscription || undefined}
+                        onEdit={handleEditTranscription}
+                        editable={true}
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <BookmarkManager
+                        bookmarks={bookmarks}
+                        onAdd={handleAddBookmark}
+                        onDelete={handleDeleteBookmark}
+                        onUpdate={handleUpdateBookmark}
+                        onJumpTo={(position) => {
+                          // Scroll to position - will be implemented when we have position tracking
+                          console.log('Jump to position:', position);
+                        }}
+                      />
+                      <NoteManager
+                        notes={notes}
+                        onAdd={handleAddNote}
+                        onDelete={handleDeleteNote}
+                        onUpdate={handleUpdateNote}
+                      />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}
