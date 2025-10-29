@@ -12,6 +12,8 @@ import TranscriptionDisplay from "@/components/transcription-display";
 import { useToast } from "@/hooks/use-toast";
 import AudioPlayer from "@/components/audio-player";
 import SummaryDisplay from "@/components/summary-display";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,6 +22,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [generateSummary, setGenerateSummary] = useState(true);
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +43,8 @@ export default function Home() {
     setError(null);
     setTranscription(null);
     setSummary(null);
+
+    formData.append('generateSummary', String(generateSummary));
 
     const result = await processMedia(formData);
     
@@ -142,9 +147,13 @@ export default function Home() {
             <CardTitle className="text-2xl font-headline">Obtenha sua Transcrição</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground mb-6">
-              Grave um áudio ou envie um arquivo de mídia. Nossa IA irá transcrever, corrigir, identificar os locutores e gerar uma ata para você.
+            <p className="text-muted-foreground mb-4">
+              Grave um áudio ou envie um arquivo de mídia. Nossa IA irá transcrever, corrigir e identificar os locutores para você.
             </p>
+            <div className="flex items-center space-x-2 mb-6">
+              <Switch id="summary-switch" checked={generateSummary} onCheckedChange={setGenerateSummary} />
+              <Label htmlFor="summary-switch">Gerar ata da reunião</Label>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Button onClick={handleRecord} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
                 {isRecording ? <Square className="w-8 h-8 mr-4 animate-pulse" /> : <Mic className="w-8 h-8 mr-4" />}

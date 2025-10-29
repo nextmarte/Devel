@@ -4,9 +4,11 @@ import { correctTranscriptionErrors } from '@/ai/flows/correct-transcription-err
 import { identifySpeakers } from '@/ai/flows/identify-speakers-in-text';
 import { summarizeText } from '@/ai/flows/summarize-text';
 
-export async function processMedia(formData: FormData): Promise<{ data: { transcription: string; summary: string } | null; error: string | null; }> {
+export async function processMedia(formData: FormData): Promise<{ data: { transcription: string; summary: string | null } | null; error: string | null; }> {
   try {
     const file = formData.get('file') as File;
+    const generateSummary = formData.get('generateSummary') === 'true';
+
     if (!file) {
       return { data: null, error: 'Nenhum arquivo foi fornecido.' };
     }
@@ -55,10 +57,15 @@ export async function processMedia(formData: FormData): Promise<{ data: { transc
     const speakersResult = await identifySpeakers({ text: correctedResult.correctedTranscription });
     const identifiedText = speakersResult.identifiedText;
 
-    // Step 4: Generate a summary/meeting minutes from the identified text
-    const summaryResult = await summarizeText({ text: identifiedText });
+    let summary: string | null = null;
+    if (generateSummary) {
+        // Step 4: Generate a summary/meeting minutes from the identified text
+        const summaryResult = await summarizeText({ text: identifiedText });
+        summary = summaryResult.summary;
+    }
 
-    return { data: { transcription: identifiedText, summary: summaryResult.summary }, error: null };
+
+    return { data: { transcription: identifiedText, summary: summary }, error: null };
   } catch (error: any) {
     console.error("Error processing media:", error);
     return { data: null, error: error.message || "Falha ao processar a transcrição. Por favor, tente novamente." };
