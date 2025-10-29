@@ -2,8 +2,9 @@
 
 import { correctTranscriptionErrors } from '@/ai/flows/correct-transcription-errors';
 import { identifySpeakers } from '@/ai/flows/identify-speakers-in-text';
+import { summarizeText } from '@/ai/flows/summarize-text';
 
-export async function processMedia(formData: FormData): Promise<{ data: string | null; error: string | null; }> {
+export async function processMedia(formData: FormData): Promise<{ data: { transcription: string; summary: string } | null; error: string | null; }> {
   try {
     const file = formData.get('file') as File;
     if (!file) {
@@ -20,7 +21,7 @@ export async function processMedia(formData: FormData): Promise<{ data: string |
       return { data: null, error: 'A URL da API não está configurada.' };
     }
 
-    const response = await fetch(`${apiUrl}/api/transcribe`, {
+    const response = await fetch(`https://${apiUrl}/api/transcribe`, {
       method: 'POST',
       body: apiFormData,
     });
@@ -52,8 +53,12 @@ export async function processMedia(formData: FormData): Promise<{ data: string |
 
     // Step 3: Identify speakers in the corrected text
     const speakersResult = await identifySpeakers({ text: correctedResult.correctedTranscription });
+    const identifiedText = speakersResult.identifiedText;
 
-    return { data: speakersResult.identifiedText, error: null };
+    // Step 4: Generate a summary/meeting minutes from the identified text
+    const summaryResult = await summarizeText({ text: identifiedText });
+
+    return { data: { transcription: identifiedText, summary: summaryResult.summary }, error: null };
   } catch (error: any) {
     console.error("Error processing media:", error);
     return { data: null, error: error.message || "Falha ao processar a transcrição. Por favor, tente novamente." };

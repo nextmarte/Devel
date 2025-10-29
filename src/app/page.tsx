@@ -11,10 +11,12 @@ import LoadingSpinner from "@/components/loading-spinner";
 import TranscriptionDisplay from "@/components/transcription-display";
 import { useToast } from "@/hooks/use-toast";
 import AudioPlayer from "@/components/audio-player";
+import SummaryDisplay from "@/components/summary-display";
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcription, setTranscription] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -37,6 +39,7 @@ export default function Home() {
     setIsProcessing(true);
     setError(null);
     setTranscription(null);
+    setSummary(null);
 
     const result = await processMedia(formData);
     
@@ -47,8 +50,9 @@ export default function Home() {
         title: "Ocorreu um erro",
         description: result.error,
       });
-    } else {
-      setTranscription(result.data);
+    } else if (result.data) {
+      setTranscription(result.data.transcription);
+      setSummary(result.data.summary);
     }
 
     setIsProcessing(false);
@@ -92,6 +96,7 @@ export default function Home() {
         setIsRecording(true);
         setError(null);
         setTranscription(null);
+        setSummary(null);
       } catch (err) {
         console.error("Error accessing microphone:", err);
         const errorMessage = "Não foi possível acessar o microfone. Verifique as permissões do seu navegador.";
@@ -123,6 +128,8 @@ export default function Home() {
       handleProcess(formData);
     }
   };
+  
+  const hasResult = transcription || summary;
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-background text-foreground p-4 sm:p-8">
@@ -136,7 +143,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-6">
-              Grave um áudio ou envie um arquivo de mídia. Nossa IA irá transcrever, corrigir e identificar os locutores para você.
+              Grave um áudio ou envie um arquivo de mídia. Nossa IA irá transcrever, corrigir, identificar os locutores e gerar uma ata para você.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Button onClick={handleRecord} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
@@ -158,27 +165,59 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <Card className="flex-grow shadow-lg shadow-primary/10 border-border">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline">Resultado</CardTitle>
-          </CardHeader>
-          <CardContent className="h-full">
-            <div className="w-full h-full min-h-[200px] p-4 border border-dashed border-border rounded-lg flex flex-col items-center justify-center bg-background/50">
-              {isProcessing ? (
+        {isProcessing && (
+          <Card className="flex-grow shadow-lg shadow-primary/10 border-border">
+            <CardContent className="h-full p-6">
+              <div className="w-full h-full min-h-[200px] p-4 border border-dashed border-border rounded-lg flex flex-col items-center justify-center bg-background/50">
                 <LoadingSpinner />
-              ) : error ? (
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {error && !isProcessing && (
+          <Card className="flex-grow shadow-lg shadow-destructive/20 border-destructive/50">
+            <CardHeader>
+              <CardTitle className="text-2xl font-headline text-destructive">Erro</CardTitle>
+            </CardHeader>
+            <CardContent className="h-full">
+              <div className="w-full h-full min-h-[200px] p-4 border border-dashed border-destructive/50 rounded-lg flex flex-col items-center justify-center bg-background/50">
                 <p className="text-destructive">{error}</p>
-              ) : transcription ? (
-                <div className="w-full flex flex-col gap-4">
-                  {audioUrl && <AudioPlayer src={audioUrl} />}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {!isProcessing && !error && hasResult && (
+          <>
+            {audioUrl && <AudioPlayer src={audioUrl} />}
+            {summary && <SummaryDisplay summary={summary} />}
+            {transcription && (
+              <Card className="shadow-lg shadow-primary/10 border-border">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-headline">Transcrição Completa</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <TranscriptionDisplay text={transcription} />
-                </div>
-              ) : (
-                <p className="text-muted-foreground">Sua transcrição aparecerá aqui.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {!isProcessing && !error && !hasResult && (
+           <Card className="flex-grow shadow-lg shadow-primary/10 border-border">
+            <CardHeader>
+              <CardTitle className="text-2xl font-headline">Resultado</CardTitle>
+            </CardHeader>
+            <CardContent className="h-full">
+              <div className="w-full h-full min-h-[200px] p-4 border border-dashed border-border rounded-lg flex flex-col items-center justify-center bg-background/50">
+                  <p className="text-muted-foreground">Sua transcrição e ata aparecerão aqui.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
       </main>
       <footer className="w-full max-w-4xl mt-8 text-center text-muted-foreground text-sm">
         <p>Desenvolvido por DareDevil.AI</p>
