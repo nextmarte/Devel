@@ -29,15 +29,20 @@ export async function processMedia(formData: FormData): Promise<{ data: { transc
     });
 
     if (!response.ok) {
-      // Try to parse error response as JSON, but fallback to text if it fails
       let errorMessage = `A requisição para a API falhou com o status: ${response.statusText}`;
       try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || JSON.stringify(errorData);
-      } catch (e) {
-        // The response was not JSON, use the raw text
-        const rawText = await response.text();
-        errorMessage = rawText || errorMessage;
+        // First, try to get the full response text
+        const errorText = await response.text();
+        try {
+          // Then, try to parse it as JSON
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || JSON.stringify(errorData);
+        } catch (jsonError) {
+          // If parsing fails, use the raw text as the error message
+          errorMessage = errorText || errorMessage;
+        }
+      } catch (textError) {
+        // If reading text fails, stick with the original status message
       }
       console.error("API Error:", errorMessage);
       return { data: null, error: `A requisição para a API falhou: ${errorMessage}` };
