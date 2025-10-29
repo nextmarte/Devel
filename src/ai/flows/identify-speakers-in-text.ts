@@ -20,7 +20,7 @@ const IdentifySpeakersOutputSchema = z.object({
   identifiedText: z
     .string()    
     .describe(
-      'The transcribed text with each identified speaker labeled (e.g., Speaker 1: ... Speaker 2: ...).'
+      'O texto transcrito com cada locutor identificado (e.g., Locutor 1: ... Locutor 2: ...).'
     ),
 });
 export type IdentifySpeakersOutput = z.infer<typeof IdentifySpeakersOutputSchema>;
@@ -33,9 +33,9 @@ const identifySpeakersPrompt = ai.definePrompt({
   name: 'identifySpeakersPrompt',
   input: {schema: IdentifySpeakersInputSchema},
   output: {schema: IdentifySpeakersOutputSchema},
-  prompt: `You are an AI expert in identifying speakers in transcribed text. Analyze the following text and identify the different speakers.  Label each speaker clearly (e.g., Speaker 1:, Speaker 2:, etc.).  Return the full text with speaker labels.
+  prompt: `Você é uma IA especialista em identificar locutores em textos transcritos. Analise o texto a seguir e identifique os diferentes locutores.  Identifique cada locutor de forma clara (ex: Locutor 1:, Locutor 2:, etc.).  Retorne o texto completo com as identificações dos locutores.
 
-Text: {{{text}}}`,
+Texto: {{{text}}}`,
 });
 
 const identifySpeakersFlow = ai.defineFlow(

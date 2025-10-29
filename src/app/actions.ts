@@ -7,7 +7,7 @@ export async function processMedia(formData: FormData): Promise<{ data: string |
   try {
     const file = formData.get('file') as File;
     if (!file) {
-      return { data: null, error: 'No file was provided.' };
+      return { data: null, error: 'Nenhum arquivo foi fornecido.' };
     }
     
     // Step 1: Transcribe the audio file using Daredevil API
@@ -17,7 +17,7 @@ export async function processMedia(formData: FormData): Promise<{ data: string |
 
     const apiUrl = process.env.NEXT_PUBLIC_DAREDEVIL_API_URL;
     if (!apiUrl) {
-      return { data: null, error: 'API URL is not configured.' };
+      return { data: null, error: 'A URL da API não está configurada.' };
     }
 
     const response = await fetch(`${apiUrl}/api/transcribe`, {
@@ -27,7 +27,7 @@ export async function processMedia(formData: FormData): Promise<{ data: string |
 
     if (!response.ok) {
       // Try to parse error response as JSON, but fallback to text if it fails
-      let errorMessage = `API request failed with status: ${response.statusText}`;
+      let errorMessage = `A requisição para a API falhou com o status: ${response.statusText}`;
       try {
         const errorData = await response.json();
         errorMessage = errorData.error || JSON.stringify(errorData);
@@ -36,13 +36,13 @@ export async function processMedia(formData: FormData): Promise<{ data: string |
         errorMessage = await response.text();
       }
       console.error("API Error:", errorMessage);
-      return { data: null, error: `API request failed: ${errorMessage}` };
+      return { data: null, error: `A requisição para a API falhou: ${errorMessage}` };
     }
 
     const transcriptionResult = await response.json();
     
     if (!transcriptionResult.success) {
-      return { data: null, error: transcriptionResult.error || "Transcription failed." };
+      return { data: null, error: transcriptionResult.error || "A transcrição falhou." };
     }
 
     const transcriptionText = transcriptionResult.transcription.text;
@@ -56,6 +56,6 @@ export async function processMedia(formData: FormData): Promise<{ data: string |
     return { data: speakersResult.identifiedText, error: null };
   } catch (error: any) {
     console.error("Error processing media:", error);
-    return { data: null, error: error.message || "Failed to process transcription. Please try again." };
+    return { data: null, error: error.message || "Falha ao processar a transcrição. Por favor, tente novamente." };
   }
 }
