@@ -15,15 +15,28 @@ export async function processMedia(formData: FormData): Promise<{ data: string |
     apiFormData.append('file', file);
     apiFormData.append('language', 'pt');
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_DAREDEVIL_API_URL}/api/transcribe`, {
+    const apiUrl = process.env.NEXT_PUBLIC_DAREDEVIL_API_URL;
+    if (!apiUrl) {
+      return { data: null, error: 'API URL is not configured.' };
+    }
+
+    const response = await fetch(`${apiUrl}/api/transcribe`, {
       method: 'POST',
       body: apiFormData,
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'An unknown API error occurred.' }));
-      console.error("API Error:", errorData);
-      return { data: null, error: `API request failed: ${errorData.error || response.statusText}` };
+      // Try to parse error response as JSON, but fallback to text if it fails
+      let errorMessage = `API request failed with status: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || JSON.stringify(errorData);
+      } catch (e) {
+        // The response was not JSON, use the raw text
+        errorMessage = await response.text();
+      }
+      console.error("API Error:", errorMessage);
+      return { data: null, error: `API request failed: ${errorMessage}` };
     }
 
     const transcriptionResult = await response.json();
