@@ -24,6 +24,7 @@
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
     --radius: 0.5rem;
+    --transcription-font-size: 16px;
   }
 
   .dark {
@@ -60,5 +61,8 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  .transcription-text {
+    font-size: var(--transcription-font-size);
   }
 }

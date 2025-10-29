@@ -20,6 +20,7 @@ import DiffView from "@/components/diff-view";
 import TranscriptionActions from "@/components/transcription-actions";
 import TranscriptionHistory from "@/components/transcription-history";
 import ThemeToggle from "@/components/theme-toggle";
+import SettingsPanel from "@/components/settings-panel";
 import TranscriptionAnalytics from "@/components/transcription-analytics";
 import BookmarkManager from "@/components/bookmark-manager";
 import NoteManager from "@/components/note-manager";
@@ -322,7 +323,10 @@ export default function Home() {
     <div className="flex flex-col items-center min-h-screen bg-background text-foreground p-4 sm:p-8">
       <header className="w-full max-w-4xl mb-8 flex justify-between items-center">
         <Logo />
-        <ThemeToggle />
+        <div className="flex gap-2">
+          <SettingsPanel />
+          <ThemeToggle />
+        </div>
       </header>
       <main className="w-full max-w-4xl flex-grow flex flex-col gap-8">
         <Card className="shadow-lg shadow-primary/10 border-border">

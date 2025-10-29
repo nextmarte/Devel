@@ -126,7 +126,7 @@ export default function EnhancedTranscriptionDisplay({
     return (
       <div className="space-y-4">
         <TranscriptionSearch text={identified} onHighlight={handleHighlight} />
-        <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body text-base leading-relaxed">
+        <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body leading-relaxed transcription-text">
           {editable ? (
             <TranscriptionEditor
               initialText={identified}
@@ -153,7 +153,7 @@ export default function EnhancedTranscriptionDisplay({
         
         {raw && (
           <TabsContent value="raw" className="mt-4">
-            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body text-base leading-relaxed text-gray-600">
+            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body leading-relaxed text-gray-600 transcription-text">
               {highlightMatches.length > 0 ? highlightSearchMatches(raw) : renderText(raw)}
             </div>
           </TabsContent>
@@ -161,7 +161,7 @@ export default function EnhancedTranscriptionDisplay({
         
         {corrected && (
           <TabsContent value="corrected" className="mt-4">
-            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body text-base leading-relaxed">
+            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body leading-relaxed transcription-text">
               {highlightMatches.length > 0 ? highlightSearchMatches(corrected) : renderText(corrected)}
             </div>
           </TabsContent>
@@ -169,7 +169,7 @@ export default function EnhancedTranscriptionDisplay({
         
         {identified && (
           <TabsContent value="identified" className="mt-4">
-            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body text-base leading-relaxed">
+            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body leading-relaxed transcription-text">
               {editable ? (
                 <TranscriptionEditor
                   initialText={identified}
