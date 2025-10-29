@@ -14,9 +14,13 @@ import AudioPlayer from "@/components/audio-player";
 import SummaryDisplay from "@/components/summary-display";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import ProcessingProgress, { type ProcessingStep } from "@/components/processing-progress";
+import DiffView from "@/components/diff-view";
+import TranscriptionActions from "@/components/transcription-actions";
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState<ProcessingStep>('transcribing');
   const [rawTranscription, setRawTranscription] = useState<string | null>(null);
   const [correctedTranscription, setCorrectedTranscription] = useState<string | null>(null);
   const [identifiedTranscription, setIdentifiedTranscription] = useState<string | null>(null);
@@ -43,6 +47,7 @@ export default function Home() {
   const handleProcess = async (formData: FormData) => {
     setIsProcessing(true);
     setError(null);
+    setProcessingStep('transcribing');
     setRawTranscription(null);
     setCorrectedTranscription(null);
     setIdentifiedTranscription(null);
@@ -50,23 +55,41 @@ export default function Home() {
 
     formData.append('generateSummary', String(generateSummary));
 
-    const result = await processMedia(formData);
-    
-    if (result.error) {
-      setError(result.error);
-      toast({
-        variant: "destructive",
-        title: "Ocorreu um erro",
-        description: result.error,
-      });
-    } else if (result.data) {
-      setRawTranscription(result.data.rawTranscription);
-      setCorrectedTranscription(result.data.correctedTranscription);
-      setIdentifiedTranscription(result.data.identifiedTranscription);
-      setSummary(result.data.summary);
-    }
+    try {
+      // Simulate step progression
+      setProcessingStep('transcribing');
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-    setIsProcessing(false);
+      const result = await processMedia(formData);
+      
+      if (result.error) {
+        setError(result.error);
+        toast({
+          variant: "destructive",
+          title: "Ocorreu um erro",
+          description: result.error,
+        });
+      } else if (result.data) {
+        setProcessingStep('correcting');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        setRawTranscription(result.data.rawTranscription);
+        setCorrectedTranscription(result.data.correctedTranscription);
+        
+        setProcessingStep('identifying');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        setIdentifiedTranscription(result.data.identifiedTranscription);
+        
+        if (generateSummary && result.data.summary) {
+          setProcessingStep('summarizing');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          setSummary(result.data.summary);
+        }
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleRecord = async () => {
@@ -141,6 +164,18 @@ export default function Home() {
       handleProcess(formData);
     }
   };
+
+  const handleNewTranscription = () => {
+    setRawTranscription(null);
+    setCorrectedTranscription(null);
+    setIdentifiedTranscription(null);
+    setSummary(null);
+    setError(null);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+  };
   
   const hasResult = identifiedTranscription || summary;
 
@@ -184,10 +219,11 @@ export default function Home() {
 
         {isProcessing && (
           <Card className="flex-grow shadow-lg shadow-primary/10 border-border">
-            <CardContent className="h-full p-6">
-              <div className="w-full h-full min-h-[200px] p-4 border border-dashed border-border rounded-lg flex flex-col items-center justify-center bg-background/50">
-                <LoadingSpinner />
-              </div>
+            <CardHeader>
+              <CardTitle className="text-2xl font-headline">Processando...</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <ProcessingProgress currentStep={processingStep} generateSummary={generateSummary} />
             </CardContent>
           </Card>
         )}
@@ -213,8 +249,11 @@ export default function Home() {
               <Card className="shadow-lg shadow-primary/10 border-border">
                 <CardHeader>
                   <CardTitle className="text-2xl font-headline">Transcrição Completa</CardTitle>
+                  <div className="mt-4">
+                    <TranscriptionActions text={identifiedTranscription} title="Transcrição" />
+                  </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
                   <TranscriptionDisplay 
                     raw={rawTranscription || undefined}
                     corrected={correctedTranscription || undefined}
@@ -223,6 +262,24 @@ export default function Home() {
                 </CardContent>
               </Card>
             )}
+            {rawTranscription && correctedTranscription && (
+              <Card className="shadow-lg shadow-primary/10 border-border">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-headline">Comparativo de Correções</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DiffView original={rawTranscription} corrected={correctedTranscription} />
+                </CardContent>
+              </Card>
+            )}
+            <Button 
+              onClick={handleNewTranscription} 
+              size="lg" 
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Mic className="w-5 h-5 mr-2" />
+              Nova Transcrição
+            </Button>
           </>
         )}
 

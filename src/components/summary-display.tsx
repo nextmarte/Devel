@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import TranscriptionActions from './transcription-actions';
 
 type SummaryDisplayProps = {
   summary: string;
@@ -48,6 +49,9 @@ export default function SummaryDisplay({ summary }: SummaryDisplayProps) {
     <Card className="shadow-lg shadow-primary/10 border-border">
       <CardHeader>
         <CardTitle className="text-2xl font-headline">Ata da Reunião / Resumo</CardTitle>
+        <div className="mt-4">
+          <TranscriptionActions text={summary} title="Ata da Reunião" />
+        </div>
       </CardHeader>
       <CardContent>
         <div className="prose prose-invert max-w-none text-left font-body text-base leading-relaxed">
