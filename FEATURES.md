@@ -8,7 +8,7 @@ Este documento descreve todas as funcionalidades implementadas no sistema de tra
 
 **Status: Implementado**
 
-- Armazena as últimas 20 transcrições no localStorage
+- Armazena as últimas 20 transcrições no localStorage (configurável via constante `MAX_ITEMS` em `transcription-storage.ts`)
 - Card visual com:
   - Preview do texto (primeiras 100 caracteres)
   - Duração do áudio
