@@ -49,20 +49,8 @@ export default function SupportedFormatsDialog() {
     setIsLoading(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_DAREDEVIL_API_URL;
-      console.log('[SupportedFormatsDialog] API URL:', apiUrl);
-      
-      if (!apiUrl) {
-        console.warn('URL da API não configurada');
-        setFormatsData({
-          supported_formats: ['opus', 'ogg', 'm4a', 'aac', 'mp3', 'wav', 'flac', 'webm', 'mp4', 'avi', 'mov', 'mkv', 'flv', 'wmv', 'ogv', 'ts', 'mts', 'm2ts', '3gp', 'f4v', 'asf'],
-          max_file_size_mb: 500,
-        });
-        return;
-      }
-
-      // Buscar de /api/health
-      const healthUrl = `${apiUrl}/api/health`;
+      // Usar proxy local do Next.js para evitar CORS
+      const healthUrl = '/api/health';
       console.log('[SupportedFormatsDialog] Fetching:', healthUrl);
       
       const response = await fetch(healthUrl, {

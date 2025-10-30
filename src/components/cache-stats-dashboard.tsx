@@ -28,13 +28,8 @@ export default function CacheStatsDashboard() {
     setIsLoading(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_DAREDEVIL_API_URL;
-      if (!apiUrl) {
-        console.warn('URL da API não configurada');
-        return;
-      }
-
-      const response = await fetch(`${apiUrl}/api/cache-stats`);
+      // Usar proxy local do Next.js para evitar CORS
+      const response = await fetch('/api/cache-stats');
       if (!response.ok) throw new Error('Falha ao obter estatísticas de cache');
 
       const stats = await response.json();
@@ -51,14 +46,9 @@ export default function CacheStatsDashboard() {
     setIsClearing(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_DAREDEVIL_API_URL;
-      if (!apiUrl) {
-        console.warn('URL da API não configurada');
-        return;
-      }
-
-      const response = await fetch(`${apiUrl}/api/cache/clear`, {
-        method: 'POST',
+      // Usar proxy local do Next.js para evitar CORS
+      const response = await fetch('/api/cache-stats', {
+        method: 'DELETE',
       });
 
       if (!response.ok) throw new Error('Falha ao limpar cache');
