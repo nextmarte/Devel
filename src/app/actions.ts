@@ -135,8 +135,9 @@ export async function startAsyncTranscription(formData: FormData): Promise<{ tas
       apiFormData.append('model', model);
     }
     
-    // NÃO enviamos webhook_url - o usuário não insere, 
-    // usamos polling para verificar status em vez disso
+    // Enviamos webhook_url vazio para evitar erro de validação no backend
+    // Usamos polling para verificar status em vez de webhooks
+    apiFormData.append('webhook_url', '');
 
     // Use o proxy do Next.js para contornar problemas CORS do Apache
     const response = await proxyToBackend('/api/transcribe/async', apiFormData);
