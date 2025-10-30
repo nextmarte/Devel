@@ -38,7 +38,7 @@ export default function TranscriptionDisplay({
   if (!hasMultipleVersions && identified) {
     // If only identified version exists, show it directly
     return (
-      <div className="w-full text-left whitespace-pre-wrap font-body text-base leading-relaxed">
+      <div className="w-full text-justify break-words font-body text-base leading-relaxed">
         {renderText(identified)}
       </div>
     );
@@ -54,7 +54,7 @@ export default function TranscriptionDisplay({
       
       {raw && (
         <TabsContent value="raw" className="mt-4">
-          <div className="w-full text-left whitespace-pre-wrap font-body text-base leading-relaxed text-gray-600">
+          <div className="w-full text-justify break-words font-body text-base leading-relaxed text-gray-600">
             {renderText(raw)}
           </div>
         </TabsContent>
@@ -62,7 +62,7 @@ export default function TranscriptionDisplay({
       
       {corrected && (
         <TabsContent value="corrected" className="mt-4">
-          <div className="w-full text-left whitespace-pre-wrap font-body text-base leading-relaxed">
+          <div className="w-full text-justify break-words font-body text-base leading-relaxed">
             {renderText(corrected)}
           </div>
         </TabsContent>
@@ -70,7 +70,7 @@ export default function TranscriptionDisplay({
       
       {identified && (
         <TabsContent value="identified" className="mt-4">
-          <div className="w-full text-left whitespace-pre-wrap font-body text-base leading-relaxed">
+          <div className="w-full text-justify break-words font-body text-base leading-relaxed">
             {renderText(identified)}
           </div>
         </TabsContent>

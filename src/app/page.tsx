@@ -17,13 +17,14 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import ProcessingProgress, { type ProcessingStep } from "@/components/processing-progress";
 import DiffView from "@/components/diff-view";
-import TranscriptionActions from "@/components/transcription-actions";
-import TranscriptionHistory from "@/components/transcription-history";
-import ThemeToggle from "@/components/theme-toggle";
 import SettingsPanel from "@/components/settings-panel";
 import TranscriptionAnalytics from "@/components/transcription-analytics";
 import BookmarkManager from "@/components/bookmark-manager";
 import NoteManager from "@/components/note-manager";
+import TranscriptionActions from "@/components/transcription-actions";
+import AppLayout from "@/components/app-layout";
+import AppSidebar from "@/components/app-sidebar";
+import ActionBar from "@/components/action-bar";
 import { TranscriptionData, TranscriptionEdit, Bookmark, Note } from "@/lib/transcription-types";
 import { saveTranscription, updateTranscription } from "@/lib/transcription-storage";
 
@@ -48,6 +49,26 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const wakeLockRef = useRef<any>(null);
+
+  // Função para manter a tela ligada durante gravação/processamento
+  const acquireWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator && !wakeLockRef.current) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      }
+    } catch (err) {
+      console.log('Wake Lock não disponível:', err);
+    }
+  };
+
+  // Função para liberar a tela
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
+  };
 
   useEffect(() => {
     // Clean up the object URL when the component unmounts
@@ -70,6 +91,9 @@ export default function Home() {
     formData.append('generateSummary', String(generateSummary));
 
     try {
+      // Manter a tela ligada durante processamento
+      await acquireWakeLock();
+      
       // Simulate step progression
       setProcessingStep('transcribing');
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -122,6 +146,7 @@ export default function Home() {
       }
     } finally {
       setIsProcessing(false);
+      releaseWakeLock();
     }
   };
 
@@ -130,9 +155,13 @@ export default function Home() {
       // Stop recording
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
+      releaseWakeLock();
     } else {
       // Start recording
       try {
+        // Manter a tela ligada durante gravação
+        await acquireWakeLock();
+        
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioChunksRef.current = [];
@@ -320,50 +349,54 @@ export default function Home() {
   const hasResult = identifiedTranscription || summary;
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-background text-foreground p-4 sm:p-8">
-      <header className="w-full max-w-4xl mb-8 flex justify-between items-center">
-        <Logo />
-        <div className="flex gap-2">
-          <SettingsPanel />
-          <ThemeToggle />
-        </div>
-      </header>
-      <main className="w-full max-w-4xl flex-grow flex flex-col gap-8">
-        <Card className="shadow-lg shadow-primary/10 border-border">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline">Obtenha sua Transcrição</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">
-              Grave um áudio ou envie um arquivo de mídia. Nossa IA irá transcrever, corrigir e identificar os locutores para você.
-            </p>
-            <div className="flex items-center space-x-2 mb-6">
-              <Switch id="summary-switch" checked={generateSummary} onCheckedChange={setGenerateSummary} />
-              <Label htmlFor="summary-switch">Gerar ata da reunião</Label>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Button onClick={handleRecord} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
-                {isRecording ? <Square className="w-8 h-8 mr-4 animate-pulse" /> : <Mic className="w-8 h-8 mr-4" />}
-                {isRecording ? "Parar Gravação" : "Gravar Áudio"}
-              </Button>
-              <Button onClick={handleUploadClick} disabled={isProcessing || isRecording} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
-                <Upload className="w-8 h-8 mr-4" />
-                Enviar Mídia
-              </Button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange}
-                className="hidden" 
-                accept="audio/*,video/*"
-              />
-            </div>
-          </CardContent>
-        </Card>
+    <AppLayout
+      sidebar={<AppSidebar onRestoreTranscription={handleRestoreTranscription} />}
+    >
+      <div className="flex flex-col min-h-screen bg-background text-foreground">
+        <main className="flex-1 p-4 sm:p-8 max-w-6xl mx-auto w-full">
+          <Card className="shadow-lg shadow-primary/10 border-border">
+            <CardHeader>
+              <CardTitle className="text-2xl font-headline">Obtenha sua Transcrição</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground mb-4">
+                Grave um áudio ou envie um arquivo de mídia. Nossa IA irá transcrever, corrigir e identificar os locutores para você.
+              </p>
+              <div className="flex items-center space-x-2 mb-6">
+                <Switch id="summary-switch" checked={generateSummary} onCheckedChange={setGenerateSummary} />
+                <Label htmlFor="summary-switch">Gerar ata da reunião</Label>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Button onClick={handleRecord} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
+                  {isRecording ? <Square className="w-8 h-8 mr-4 animate-pulse" /> : <Mic className="w-8 h-8 mr-4" />}
+                  {isRecording ? "Parar Gravação" : "Gravar Áudio"}
+                </Button>
+                <Button onClick={handleUploadClick} disabled={isProcessing || isRecording} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
+                  <Upload className="w-8 h-8 mr-4" />
+                  Enviar Mídia
+                </Button>
+                {!isProcessing && !error && (identifiedTranscription || rawTranscription) && (
+                  <Button 
+                    onClick={handleNewTranscription} 
+                    size="lg" 
+                    className="h-24 text-lg sm:col-span-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Mic className="w-8 h-8 mr-4" />
+                    Nova Transcrição
+                  </Button>
+                )}
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange}
+                  className="hidden" 
+                  accept="audio/*,video/*"
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-        {!isProcessing && !error && !hasResult && (
-          <TranscriptionHistory onRestore={handleRestoreTranscription} />
-        )}
+          <div className="mt-8 space-y-8">
 
         {isProcessing && (
           <Card className="flex-grow shadow-lg shadow-primary/10 border-border">
@@ -452,19 +485,11 @@ export default function Home() {
                 </CardContent>
               </Card>
             )}
-            <Button 
-              onClick={handleNewTranscription} 
-              size="lg" 
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <Mic className="w-5 h-5 mr-2" />
-              Nova Transcrição
-            </Button>
           </>
         )}
 
         {!isProcessing && !error && !hasResult && (
-           <Card className="flex-grow shadow-lg shadow-primary/10 border-border">
+           <Card className="shadow-lg shadow-primary/10 border-border">
             <CardHeader>
               <CardTitle className="text-2xl font-headline">Resultado</CardTitle>
             </CardHeader>
@@ -476,10 +501,22 @@ export default function Home() {
           </Card>
         )}
 
-      </main>
-      <footer className="w-full max-w-4xl mt-8 text-center text-muted-foreground text-sm">
-        <p>Desenvolvido por DareDevil.AI</p>
-      </footer>
-    </div>
+          </div>
+
+          <footer className="mt-8 text-center text-muted-foreground text-sm pb-8">
+            <p className="mb-2">Desenvolvido por <span className="font-semibold">Marcus Antonio</span></p>
+            <p className="text-xs">
+              📧 <a href="mailto:marcusantonio@id.uff.br" className="hover:text-primary transition-colors">marcusantonio@id.uff.br</a>
+            </p>
+          </footer>
+        </main>
+      </div>
+
+      <ActionBar 
+        text={identifiedTranscription || ""} 
+        isVisible={!isProcessing && !error && !!identifiedTranscription}
+        title="Transcrição"
+      />
+    </AppLayout>
   );
 }

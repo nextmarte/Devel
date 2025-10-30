@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Download, Share2, Check, FileText } from 'lucide-react';
+import { Copy, Download, Check, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -51,51 +51,10 @@ export default function TranscriptionActions({ text, title = 'transcrição' }: 
     });
   };
 
-  const handleDownloadPdf = async () => {
-    try {
-      const jsPDFModule = await import('jspdf');
-      const { jsPDF } = jsPDFModule;
-      const doc = new jsPDF();
-      
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 10;
-      const maxWidth = pageWidth - 2 * margin;
-      
-      // Adiciona título
-      doc.setFontSize(16);
-      doc.text(title, margin, margin + 10);
-      
-      // Adiciona data
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, margin, margin + 20);
-      
-      // Adiciona conteúdo
-      doc.setFontSize(11);
-      doc.setTextColor(0);
-      const splitText = doc.splitTextToSize(text, maxWidth);
-      doc.text(splitText, margin, margin + 30);
-      
-      doc.save(`${title.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
-      
-      toast({
-        title: 'Download iniciado',
-        description: `${title} foi baixada como PDF`,
-      });
-    } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: 'Não foi possível gerar o PDF. Tente novamente.',
-      });
-    }
-  };
-
   const handleDownloadDocx = async () => {
     try {
       const docxModule = await import('docx');
-      const { Document, Packer, Paragraph, HeadingLevel } = docxModule;
+      const { Document, Packer, Paragraph, HeadingLevel, AlignmentType } = docxModule;
       
       const doc = new Document({
         sections: [
@@ -113,6 +72,7 @@ export default function TranscriptionActions({ text, title = 'transcrição' }: 
                 new Paragraph({
                   text: paragraph || ' ',
                   spacing: { line: 240, after: 200 },
+                  alignment: AlignmentType.JUSTIFIED,
                 })
               ),
             ],
@@ -143,19 +103,6 @@ export default function TranscriptionActions({ text, title = 'transcrição' }: 
     }
   };
 
-  const handleShareWhatsApp = () => {
-    const message = encodeURIComponent(
-      `📄 *${title}*\n\n${text.substring(0, 500)}${text.length > 500 ? '...\n\n(Mensagem truncada)' : ''}`
-    );
-    const whatsappUrl = `https://wa.me/?text=${message}`;
-    window.open(whatsappUrl, '_blank');
-
-    toast({
-      title: 'Abrindo WhatsApp',
-      description: 'A mensagem foi preparada para compartilhamento',
-    });
-  };
-
   return (
     <div className="flex gap-2 flex-wrap">
       <Button
@@ -176,28 +123,12 @@ export default function TranscriptionActions({ text, title = 'transcrição' }: 
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={handleDownloadTxt}>
-            Texto (.txt)
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleDownloadDocx}>
             <FileText className="w-4 h-4 mr-2" />
             Word (.docx)
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleDownloadPdf}>
-            PDF (.pdf)
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleShareWhatsApp}
-        className="gap-2"
-      >
-        <Share2 className="w-4 h-4" />
-        WhatsApp
-      </Button>
     </div>
   );
 }

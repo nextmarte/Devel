@@ -111,11 +111,16 @@ export default function EnhancedTranscriptionDisplay({
         return (
           <React.Fragment key={index}>
             {index > 0 && <br />}
-            <span className="font-bold text-primary">{part}</span>
+            <span className="font-bold text-primary inline">{part}</span>
+            {' '}
           </React.Fragment>
         );
       }
-      return <span key={index}>{part.trim()}</span>;
+      return (
+        <span key={index} className="inline">
+          {part}
+        </span>
+      );
     });
   };
 
@@ -126,7 +131,7 @@ export default function EnhancedTranscriptionDisplay({
     return (
       <div className="space-y-4">
         <TranscriptionSearch text={identified} onHighlight={handleHighlight} />
-        <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body leading-relaxed transcription-text">
+        <div ref={contentRef} className="w-full text-justify break-words font-body leading-relaxed transcription-text">
           {editable ? (
             <TranscriptionEditor
               initialText={identified}
@@ -153,7 +158,7 @@ export default function EnhancedTranscriptionDisplay({
         
         {raw && (
           <TabsContent value="raw" className="mt-4">
-            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body leading-relaxed text-gray-600 transcription-text">
+            <div ref={contentRef} className="w-full text-justify break-words font-body leading-relaxed text-gray-600 transcription-text">
               {highlightMatches.length > 0 ? highlightSearchMatches(raw) : renderText(raw)}
             </div>
           </TabsContent>
@@ -161,7 +166,7 @@ export default function EnhancedTranscriptionDisplay({
         
         {corrected && (
           <TabsContent value="corrected" className="mt-4">
-            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body leading-relaxed transcription-text">
+            <div ref={contentRef} className="w-full text-justify break-words font-body leading-relaxed transcription-text">
               {highlightMatches.length > 0 ? highlightSearchMatches(corrected) : renderText(corrected)}
             </div>
           </TabsContent>
@@ -169,7 +174,7 @@ export default function EnhancedTranscriptionDisplay({
         
         {identified && (
           <TabsContent value="identified" className="mt-4">
-            <div ref={contentRef} className="w-full text-left whitespace-pre-wrap font-body leading-relaxed transcription-text">
+            <div ref={contentRef} className="w-full text-justify break-words font-body leading-relaxed transcription-text">
               {editable ? (
                 <TranscriptionEditor
                   initialText={identified}
