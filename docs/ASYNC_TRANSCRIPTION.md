@@ -184,8 +184,10 @@ Content-Type: multipart/form-data
 
 file: <arquivo>
 language: pt (opcional)
-webhook_url: <url> (opcional)
+webhook_url: <url> (opcional, enviar string vazia se não usar)
 ```
+
+**Nota:** A aplicação envia `webhook_url` como string vazia por padrão, pois utiliza polling para verificar o status em vez de webhooks.
 
 **Resposta:**
 ```json

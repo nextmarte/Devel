@@ -129,10 +129,12 @@ type AsyncTaskStatus =
 POST /api/transcribe/async
 file: <arquivo>
 language: pt (opcional)
-webhook_url: <url> (opcional)
+webhook_url: <url> (opcional, enviar string vazia se não usar)
 
 → { task_id: "abc123", status_url: "..." }
 ```
+
+**Nota:** A aplicação envia `webhook_url=""` por padrão (usa polling em vez de webhooks).
 
 ### Status
 ```
