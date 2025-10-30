@@ -18,14 +18,9 @@ else
 fi
 
 # Perguntar pelos valores
-read -p "Digite sua GOOGLE_API_KEY (ou pressione Enter para pular): " google_key
-if [ ! -z "$google_key" ]; then
-    sed -i "s|your-google-api-key-here|$google_key|g" .env.local
-fi
-
-read -p "Digite sua GEMINI_API_KEY (ou pressione Enter para pular): " gemini_key
-if [ ! -z "$gemini_key" ]; then
-    sed -i "s|your-gemini-api-key-here|$gemini_key|g" .env.local
+read -p "Digite sua DEEPSEEK_API_KEY (ou pressione Enter para pular): " deepseek_key
+if [ ! -z "$deepseek_key" ]; then
+    sed -i "s|your-deepseek-api-key-here|$deepseek_key|g" .env.local
 fi
 
 read -p "Digite a NEXT_PUBLIC_DAREDEVIL_API_URL (ou pressione Enter para usar default): " api_url

@@ -1,7 +1,7 @@
 import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/google-genai';
+import deepseek, {deepseekChat} from 'genkitx-deepseek';
 
 export const ai = genkit({
-  plugins: [googleAI()],
-  model: 'googleai/gemini-2.5-pro',
+  plugins: [deepseek({apiKey: process.env.DEEPSEEK_API_KEY})],
+  model: deepseekChat,
 });

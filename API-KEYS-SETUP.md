@@ -2,10 +2,11 @@
 
 ## 1️⃣ Obtenha suas chaves de API
 
-### Google Gemini API
-1. Acesse: https://aistudio.google.com/app/apikey
-2. Clique em "Create API Key"
-3. Copie a chave gerada
+### DeepSeek API
+1. Acesse: https://platform.deepseek.com/api_keys
+2. Crie uma conta ou faça login
+3. Clique em "Create API Key"
+4. Copie a chave gerada
 
 ## 2️⃣ Configure as variáveis de ambiente
 
@@ -23,8 +24,7 @@ cp .env.docker .env.local
 
 2. Edite `.env.local` e adicione suas chaves:
 ```
-GOOGLE_API_KEY=sua-chave-aqui
-GEMINI_API_KEY=sua-chave-aqui
+DEEPSEEK_API_KEY=sua-chave-aqui
 NEXT_PUBLIC_DAREDEVIL_API_URL=https://devel.cid-uff.net
 ```
 
@@ -69,5 +69,6 @@ docker logs devel-app
 
 ## 📖 Recursos
 
-- [Google Gemini API Docs](https://ai.google.dev/)
+- [DeepSeek Platform](https://platform.deepseek.com/)
+- [DeepSeek API Documentation](https://platform.deepseek.com/api-docs/)
 - [Genkit Documentation](https://genkit.dev/)
