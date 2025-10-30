@@ -1,7 +1,11 @@
 import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/google-genai';
+import deepseek, {deepseekChat} from 'genkitx-deepseek';
+
+if (!process.env.DEEPSEEK_API_KEY) {
+  throw new Error('DEEPSEEK_API_KEY environment variable is required');
+}
 
 export const ai = genkit({
-  plugins: [googleAI()],
-  model: 'googleai/gemini-2.5-pro',
+  plugins: [deepseek({apiKey: process.env.DEEPSEEK_API_KEY})],
+  model: deepseekChat,
 });

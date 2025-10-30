@@ -12,9 +12,7 @@ services:
       - NODE_ENV=production
       - PORT=8565
       - NEXT_PUBLIC_DAREDEVIL_API_URL=${NEXT_PUBLIC_DAREDEVIL_API_URL}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GENKIT_MODEL=${GENKIT_MODEL}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     volumes:
       - ./public:/app/public:ro
     restart: unless-stopped
