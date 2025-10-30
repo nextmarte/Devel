@@ -54,8 +54,11 @@ export default function Home() {
   // Função para manter a tela ligada durante gravação/processamento
   const acquireWakeLock = async () => {
     try {
-      if ('wakeLock' in navigator && !wakeLockRef.current) {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      if ('wakeLock' in navigator) {
+        // Check if wake lock is not active or has been released
+        if (!wakeLockRef.current || wakeLockRef.current.released) {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        }
       }
     } catch (err) {
       console.log('Wake Lock não disponível:', err);
