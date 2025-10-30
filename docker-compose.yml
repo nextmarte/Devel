@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devel-app
+    ports:
+      - "8565:8565"
+    environment:
+      - NODE_ENV=production
+      - PORT=8565
+      - NEXT_PUBLIC_DAREDEVIL_API_URL=${NEXT_PUBLIC_DAREDEVIL_API_URL}
+    volumes:
+      - ./public:/app/public:ro
+    restart: unless-stopped
+    networks:
+      - devel-network
+
+networks:
+  devel-network:
+    driver: bridge
