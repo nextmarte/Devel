@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Mic, Upload, Square } from "lucide-react";
+import { Mic, Upload, Square, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { processMedia } from "./actions";
+import { processMedia, startAsyncTranscription, processAsyncTranscriptionResult } from "./actions";
 import Logo from "@/components/logo";
 import LoadingSpinner from "@/components/loading-spinner";
 import TranscriptionDisplay from "@/components/transcription-display";
@@ -25,8 +25,15 @@ import TranscriptionActions from "@/components/transcription-actions";
 import AppLayout from "@/components/app-layout";
 import AppSidebar from "@/components/app-sidebar";
 import ActionBar from "@/components/action-bar";
-import { TranscriptionData, TranscriptionEdit, Bookmark, Note } from "@/lib/transcription-types";
+import AsyncTaskManager from "@/components/async-task-manager";
+import CacheIndicator from "@/components/cache-indicator";
+import APIHealthMonitor from "@/components/api-health-monitor";
+import CacheStatsDashboard from "@/components/cache-stats-dashboard";
+import SupportedFormatsDialog from "@/components/supported-formats-dialog";
+import WhisperModelSelector, { type WhisperModel } from "@/components/whisper-model-selector";
+import { TranscriptionData, TranscriptionEdit, Bookmark, Note, AsyncTranscriptionTask } from "@/lib/transcription-types";
 import { saveTranscription, updateTranscription } from "@/lib/transcription-storage";
+import { saveAsyncTask, updateAsyncTask } from "@/lib/async-transcription-storage";
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -39,11 +46,15 @@ export default function Home() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [generateSummary, setGenerateSummary] = useState(true);
+  const [useAsync, setUseAsync] = useState(true); // Usar transcrição assíncrona por padrão
   const [currentTranscriptionId, setCurrentTranscriptionId] = useState<string | null>(null);
   const [audioDuration, setAudioDuration] = useState<number>(0);
   const [fileName, setFileName] = useState<string>('');
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [currentAsyncTaskId, setCurrentAsyncTaskId] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<WhisperModel>('base');
+  const [lastCachedInfo, setLastCachedInfo] = useState<{ cached: boolean; processingTime?: number } | null>(null);
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,63 +120,119 @@ export default function Home() {
     setIdentifiedTranscription(null);
     setSummary(null);
 
+    // Adicionar configurações
+    if (!formData.has('model')) {
+      formData.append('model', selectedModel);
+    }
+    if (!formData.has('language')) {
+      formData.append('language', 'pt');
+    }
     formData.append('generateSummary', String(generateSummary));
 
     try {
       // Manter a tela ligada durante processamento
       await acquireWakeLock();
       
-      // Simulate step progression
-      setProcessingStep('transcribing');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (useAsync) {
+        // Usar transcrição assíncrona
+        const { taskId, error: asyncError } = await startAsyncTranscription(formData);
 
-      const result = await processMedia(formData);
-      
-      if (result.error) {
-        setError(result.error);
-        toast({
-          variant: "destructive",
-          title: "Ocorreu um erro",
-          description: result.error,
-        });
-      } else if (result.data) {
-        setProcessingStep('correcting');
-        await new Promise(resolve => setTimeout(resolve, 300));
+        if (asyncError) {
+          setError(asyncError);
+          toast({
+            variant: "destructive",
+            title: "Ocorreu um erro",
+            description: asyncError,
+          });
+        } else if (taskId) {
+          // Criar tarefa local
+          const file = formData.get('file') as File;
+          const asyncTask: AsyncTranscriptionTask = {
+            id: Date.now().toString(),
+            taskId: taskId,
+            localId: taskId,
+            fileName: file.name,
+            fileSize: file.size,
+            status: 'PENDING',
+            progress: 0,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            retries: 0,
+            maxRetries: 3,
+            language: 'pt',
+            generateSummary: generateSummary,
+          };
+
+          saveAsyncTask(asyncTask);
+          setCurrentAsyncTaskId(taskId);
+
+          toast({
+            title: 'Transcrição assíncrona iniciada',
+            description: `${file.name} está sendo transcrito em background`,
+          });
+
+          // Resetar estados
+          setIsProcessing(false);
+          releaseWakeLock();
+        }
+      } else {
+        // Usar transcrição síncrona (modo original)
+        setProcessingStep('transcribing');
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const result = await processMedia(formData);
         
-        setRawTranscription(result.data.rawTranscription);
-        setCorrectedTranscription(result.data.correctedTranscription);
-        
-        setProcessingStep('identifying');
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        setIdentifiedTranscription(result.data.identifiedTranscription);
-        
-        if (generateSummary && result.data.summary) {
-          setProcessingStep('summarizing');
+        if (result.error) {
+          setError(result.error);
+          toast({
+            variant: "destructive",
+            title: "Ocorreu um erro",
+            description: result.error,
+          });
+        } else if (result.data) {
+          setProcessingStep('correcting');
           await new Promise(resolve => setTimeout(resolve, 300));
-          setSummary(result.data.summary);
+          
+          setRawTranscription(result.data.rawTranscription);
+          setCorrectedTranscription(result.data.correctedTranscription);
+          
+          setProcessingStep('identifying');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          setIdentifiedTranscription(result.data.identifiedTranscription);
+          
+          if (generateSummary && result.data.summary) {
+            setProcessingStep('summarizing');
+            await new Promise(resolve => setTimeout(resolve, 300));
+            setSummary(result.data.summary);
+          }
+
+          // Save to history
+          const transcriptionData: TranscriptionData = {
+            id: Date.now().toString(),
+            timestamp: Date.now(),
+            duration: audioDuration,
+            rawTranscription: result.data.rawTranscription,
+            correctedTranscription: result.data.correctedTranscription,
+            identifiedTranscription: result.data.identifiedTranscription,
+            summary: result.data.summary,
+            fileName: fileName,
+            bookmarks: [],
+            notes: [],
+          };
+          
+          saveTranscription(transcriptionData);
+          setCurrentTranscriptionId(transcriptionData.id);
+          setBookmarks([]);
+          setNotes([]);
         }
 
-        // Save to history
-        const transcriptionData: TranscriptionData = {
-          id: Date.now().toString(),
-          timestamp: Date.now(),
-          duration: audioDuration,
-          rawTranscription: result.data.rawTranscription,
-          correctedTranscription: result.data.correctedTranscription,
-          identifiedTranscription: result.data.identifiedTranscription,
-          summary: result.data.summary,
-          fileName: fileName,
-          bookmarks: [],
-          notes: [],
-        };
-        
-        saveTranscription(transcriptionData);
-        setCurrentTranscriptionId(transcriptionData.id);
-        setBookmarks([]);
-        setNotes([]);
+        setIsProcessing(false);
+        releaseWakeLock();
       }
-    } finally {
+    } catch (error: any) {
+      console.error('Error during transcription:', error);
+      setError(error.message || 'Erro desconhecido');
       setIsProcessing(false);
       releaseWakeLock();
     }
@@ -203,6 +270,8 @@ export default function Home() {
           
           const formData = new FormData();
           formData.append('file', audioFile);
+          formData.append('model', selectedModel);
+          formData.append('language', 'pt');
           handleProcess(formData);
 
           // Stop all tracks on the stream to turn off the microphone light
@@ -251,6 +320,8 @@ export default function Home() {
 
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('model', selectedModel);
+      formData.append('language', 'pt');
       handleProcess(formData);
     }
   };
@@ -366,6 +437,41 @@ export default function Home() {
       updateTranscription(currentTranscriptionId, { notes: updatedNotes });
     }
   };
+
+  const handleAsyncTaskComplete = (task: AsyncTranscriptionTask) => {
+    if (task.result?.transcription?.text && task.correctedTranscription && task.identifiedTranscription) {
+      setRawTranscription(task.result.transcription.text);
+      setCorrectedTranscription(task.correctedTranscription);
+      setIdentifiedTranscription(task.identifiedTranscription);
+      setSummary(task.summary || null);
+
+      // Salvar como transcrição completa
+      const transcriptionData: TranscriptionData = {
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        duration: task.result.transcription.duration || 0,
+        rawTranscription: task.result.transcription.text,
+        correctedTranscription: task.correctedTranscription,
+        identifiedTranscription: task.identifiedTranscription,
+        summary: task.summary || null,
+        fileName: task.fileName,
+        asyncTaskId: task.taskId,
+        bookmarks: [],
+        notes: [],
+      };
+
+      saveTranscription(transcriptionData);
+      setCurrentTranscriptionId(transcriptionData.id);
+      setBookmarks([]);
+      setNotes([]);
+      setCurrentAsyncTaskId(null);
+    }
+  };
+
+  const handleAsyncTaskError = (task: AsyncTranscriptionTask) => {
+    setError(task.error || 'Erro ao processar transcrição assíncrona');
+    setCurrentAsyncTaskId(null);
+  };
   
   const hasResult = identifiedTranscription || summary;
 
@@ -380,12 +486,32 @@ export default function Home() {
               <CardTitle className="text-2xl font-headline">Obtenha sua Transcrição</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground mb-4">
+              <p className="text-muted-foreground mb-6">
                 Grave um áudio ou envie um arquivo de mídia. Nossa IA irá transcrever, corrigir e identificar os locutores para você.
               </p>
-              <div className="flex items-center space-x-2 mb-6">
-                <Switch id="summary-switch" checked={generateSummary} onCheckedChange={setGenerateSummary} />
-                <Label htmlFor="summary-switch">Gerar ata da reunião</Label>
+
+              {/* Settings */}
+              <div className="space-y-6 mb-6 pb-6 border-b">
+                {/* Mode Selection */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch id="summary-switch" checked={generateSummary} onCheckedChange={setGenerateSummary} />
+                    <Label htmlFor="summary-switch">Gerar ata da reunião</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch id="async-switch" checked={useAsync} onCheckedChange={setUseAsync} />
+                    <Label htmlFor="async-switch" className="flex items-center gap-2">
+                      <Zap className="w-4 h-4" />
+                      Transcrição assíncrona (recomendado)
+                    </Label>
+                  </div>
+                </div>
+
+                {/* Model Selector */}
+                <WhisperModelSelector value={selectedModel} onChange={setSelectedModel} />
+
+                {/* Supported Formats */}
+                <SupportedFormatsDialog />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Button onClick={handleRecord} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
@@ -537,6 +663,10 @@ export default function Home() {
         text={identifiedTranscription || ""} 
         isVisible={!isProcessing && !error && !!identifiedTranscription}
         title="Transcrição"
+      />
+      <AsyncTaskManager 
+        onTaskComplete={handleAsyncTaskComplete}
+        onTaskError={handleAsyncTaskError}
       />
     </AppLayout>
   );
