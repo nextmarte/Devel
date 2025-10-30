@@ -20,20 +20,15 @@ export default function APIHealthMonitor() {
     setError(null);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_DAREDEVIL_API_URL;
-      if (!apiUrl) {
-        setError('URL da API não configurada');
-        return;
-      }
-
+      // Usar proxy local do Next.js para evitar CORS
       // Fetch health info
-      const healthResponse = await fetch(`${apiUrl}/api/health`);
+      const healthResponse = await fetch('/api/health');
       if (!healthResponse.ok) throw new Error('Falha ao obter status de saúde');
       const health = await healthResponse.json();
       setHealthInfo(health);
 
       // Fetch GPU status
-      const gpuResponse = await fetch(`${apiUrl}/api/gpu-status`);
+      const gpuResponse = await fetch('/api/gpu-status');
       if (!gpuResponse.ok) throw new Error('Falha ao obter status da GPU');
       const gpu = await gpuResponse.json();
       setGPUStatus(gpu);
