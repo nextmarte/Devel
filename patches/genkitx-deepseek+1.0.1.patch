@@ -1,0 +1,102 @@
+diff --git a/node_modules/genkitx-deepseek/dist/runner.d.ts b/node_modules/genkitx-deepseek/dist/runner.d.ts
+index 505bf0c..87f56a6 100644
+--- a/node_modules/genkitx-deepseek/dist/runner.d.ts
++++ b/node_modules/genkitx-deepseek/dist/runner.d.ts
+@@ -27,29 +27,43 @@ export declare const DeepSeekCandidateSchema: z.ZodObject<{
+     index: z.ZodNumber;
+     finishReason: z.ZodString;
+     message: z.ZodObject<{
+-        role: z.ZodLiteral<"assistant">;
+-        text: z.ZodString;
++        role: z.ZodLiteral<"model">;
++        content: z.ZodArray<z.ZodObject<{
++            text: z.ZodString;
++        }, "strip", z.ZodTypeAny, {
++            text: string;
++        }, {
++            text: string;
++        }>>;
+     }, "strip", z.ZodTypeAny, {
+-        text: string;
+-        role: "assistant";
++        content: {
++            text: string;
++        }[];
++        role: "model";
+     }, {
+-        text: string;
+-        role: "assistant";
++        content: {
++            text: string;
++        }[];
++        role: "model";
+     }>;
+     custom: z.ZodAny;
+ }, "strip", z.ZodTypeAny, {
+     index: number;
+     message: {
+-        text: string;
+-        role: "assistant";
++        content: {
++            text: string;
++        }[];
++        role: "model";
+     };
+     finishReason: string;
+     custom?: any;
+ }, {
+     index: number;
+     message: {
+-        text: string;
+-        role: "assistant";
++        content: {
++            text: string;
++        }[];
++        role: "model";
+     };
+     finishReason: string;
+     custom?: any;
+diff --git a/node_modules/genkitx-deepseek/dist/runner.js b/node_modules/genkitx-deepseek/dist/runner.js
+index d77307c..6e47680 100644
+--- a/node_modules/genkitx-deepseek/dist/runner.js
++++ b/node_modules/genkitx-deepseek/dist/runner.js
+@@ -44,8 +44,10 @@ exports.DeepSeekCandidateSchema = zod_1.z.object({
+     index: zod_1.z.number(),
+     finishReason: zod_1.z.string(),
+     message: zod_1.z.object({
+-        role: zod_1.z.literal('assistant'),
+-        text: zod_1.z.string(),
++        role: zod_1.z.literal('model'),
++        content: zod_1.z.array(zod_1.z.object({
++            text: zod_1.z.string(),
++        })),
+     }),
+     custom: zod_1.z.any(),
+ });
+@@ -60,7 +62,7 @@ function fromDeepSeekChunkChoice(choice) {
+     return exports.DeepSeekCandidateSchema.parse({
+         index: choice.index,
+         finishReason: choice.finish_reason || 'other',
+-        message: { role: 'assistant', text: choice.delta.content },
++        message: { role: 'model', content: [{ text: choice.delta.content || '' }] },
+         custom: {},
+     });
+ }
+@@ -76,7 +78,7 @@ function fromDeepSeekChoice(choice) {
+     return exports.DeepSeekCandidateSchema.parse({
+         index: choice.index,
+         finishReason: choice.finish_reason || 'other',
+-        message: { role: 'assistant', text: choice.message.content },
++        message: { role: 'model', content: [{ text: choice.message.content || '' }] },
+         custom: {},
+     });
+ }
+@@ -247,7 +249,7 @@ function deepseekRunner(name, client) {
+                             const candidate = fromDeepSeekChunkChoice(chunkChoice);
+                             streamingCallback({
+                                 index: candidate.index,
+-                                content: [{ text: candidate.message.text }],
++                                content: candidate.message.content,
+                             });
+                         });
+                     }
