@@ -42,7 +42,7 @@ export interface TranscriptionHistory {
   maxItems: number;
 }
 
-// Types para processamento assíncrono com webhook
+// Types para processamento assíncrono
 export type AsyncJobStatus = 'PENDING' | 'STARTED' | 'SUCCESS' | 'FAILURE' | 'RETRY' | 'CANCELLED';
 
 export interface AsyncJob {
@@ -71,12 +71,4 @@ export interface AsyncJob {
     stage: 'transcribing' | 'correcting' | 'identifying' | 'summarizing' | 'completed';
     percentage: number;
   };
-}
-
-export interface WebhookPayload {
-  jobId: string;
-  status: AsyncJobStatus;
-  result?: any;
-  error?: string;
-  processingTime?: number;
 }

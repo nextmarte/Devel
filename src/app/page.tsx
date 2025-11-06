@@ -5,7 +5,7 @@ import { Mic, Upload, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { processMedia } from "./actions";
+import { processMedia, startAsyncTranscription, getAsyncTranscriptionStatus } from "./actions";
 import Logo from "@/components/logo";
 import LoadingSpinner from "@/components/loading-spinner";
 import TranscriptionDisplay from "@/components/transcription-display";
@@ -27,6 +27,7 @@ import AppSidebar from "@/components/app-sidebar";
 import ActionBar from "@/components/action-bar";
 import { TranscriptionData, TranscriptionEdit, Bookmark, Note } from "@/lib/transcription-types";
 import { saveTranscription, updateTranscription } from "@/lib/transcription-storage";
+import { useTranscriptionPolling } from "@/hooks/use-transcription-polling";
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -44,6 +45,57 @@ export default function Home() {
   const [fileName, setFileName] = useState<string>('');
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  
+  // Estados para modo assíncrono
+  const [useAsyncMode, setUseAsyncMode] = useState(false);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+
+  // Hook de polling para modo assíncrono
+  const { job: asyncJob, isPolling, error: pollingError } = useTranscriptionPolling({
+    jobId: useAsyncMode ? currentJobId : null,
+    onComplete: (completedJob) => {
+      console.log('✅ Transcrição concluída!', completedJob);
+      if (completedJob.result) {
+        setRawTranscription(completedJob.result.rawTranscription);
+        setCorrectedTranscription(completedJob.result.correctedTranscription);
+        setIdentifiedTranscription(completedJob.result.identifiedTranscription);
+        setSummary(completedJob.result.summary);
+        
+        // Salvar no histórico
+        const transcriptionData: TranscriptionData = {
+          id: completedJob.jobId,
+          timestamp: completedJob.createdAt,
+          duration: completedJob.result.audioInfo?.duration || audioDuration,
+          rawTranscription: completedJob.result.rawTranscription,
+          correctedTranscription: completedJob.result.correctedTranscription,
+          identifiedTranscription: completedJob.result.identifiedTranscription,
+          summary: completedJob.result.summary,
+          fileName: completedJob.fileName,
+          bookmarks: [],
+          notes: [],
+        };
+        
+        saveTranscription(transcriptionData);
+        setCurrentTranscriptionId(transcriptionData.id);
+        setBookmarks([]);
+        setNotes([]);
+      }
+      setIsProcessing(false);
+      releaseWakeLock();
+    },
+    onError: (errorMsg) => {
+      console.error('❌ Erro:', errorMsg);
+      setError(errorMsg);
+      setIsProcessing(false);
+      releaseWakeLock();
+      toast({
+        variant: "destructive",
+        title: "Erro na Transcrição",
+        description: errorMsg,
+      });
+    },
+    pollInterval: 2000,
+  });
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,58 +145,89 @@ export default function Home() {
     try {
       // Manter a tela ligada durante processamento
       await acquireWakeLock();
-      
-      // Simulate step progression
-      setProcessingStep('transcribing');
-      await new Promise(resolve => setTimeout(resolve, 500));
 
-      const result = await processMedia(formData);
-      
-      if (result.error) {
-        setError(result.error);
-        toast({
-          variant: "destructive",
-          title: "Ocorreu um erro",
-          description: result.error,
-        });
-      } else if (result.data) {
-        setProcessingStep('correcting');
-        await new Promise(resolve => setTimeout(resolve, 300));
+      if (useAsyncMode) {
+        // Modo assíncrono com polling
+        setProcessingStep('transcribing');
+        const result = await startAsyncTranscription(formData);
         
-        setRawTranscription(result.data.rawTranscription);
-        setCorrectedTranscription(result.data.correctedTranscription);
-        
-        setProcessingStep('identifying');
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        setIdentifiedTranscription(result.data.identifiedTranscription);
-        
-        if (generateSummary && result.data.summary) {
-          setProcessingStep('summarizing');
-          await new Promise(resolve => setTimeout(resolve, 300));
-          setSummary(result.data.summary);
+        if (result.error) {
+          setError(result.error);
+          setIsProcessing(false);
+          releaseWakeLock();
+          toast({
+            variant: "destructive",
+            title: "Ocorreu um erro",
+            description: result.error,
+          });
+        } else if (result.jobId) {
+          console.log('✅ Job iniciado:', result.jobId);
+          setCurrentJobId(result.jobId);
+          // Polling iniciará automaticamente via hook
         }
+      } else {
+        // Modo síncrono (original)
+        // Simulate step progression
+        setProcessingStep('transcribing');
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Save to history
-        const transcriptionData: TranscriptionData = {
-          id: Date.now().toString(),
-          timestamp: Date.now(),
-          duration: audioDuration,
-          rawTranscription: result.data.rawTranscription,
-          correctedTranscription: result.data.correctedTranscription,
-          identifiedTranscription: result.data.identifiedTranscription,
-          summary: result.data.summary,
-          fileName: fileName,
-          bookmarks: [],
-          notes: [],
-        };
+        const result = await processMedia(formData);
         
-        saveTranscription(transcriptionData);
-        setCurrentTranscriptionId(transcriptionData.id);
-        setBookmarks([]);
-        setNotes([]);
+        if (result.error) {
+          setError(result.error);
+          toast({
+            variant: "destructive",
+            title: "Ocorreu um erro",
+            description: result.error,
+          });
+        } else if (result.data) {
+          setProcessingStep('correcting');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          setRawTranscription(result.data.rawTranscription);
+          setCorrectedTranscription(result.data.correctedTranscription);
+          
+          setProcessingStep('identifying');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          setIdentifiedTranscription(result.data.identifiedTranscription);
+          
+          if (generateSummary && result.data.summary) {
+            setProcessingStep('summarizing');
+            await new Promise(resolve => setTimeout(resolve, 300));
+            setSummary(result.data.summary);
+          }
+
+          // Save to history
+          const transcriptionData: TranscriptionData = {
+            id: Date.now().toString(),
+            timestamp: Date.now(),
+            duration: audioDuration,
+            rawTranscription: result.data.rawTranscription,
+            correctedTranscription: result.data.correctedTranscription,
+            identifiedTranscription: result.data.identifiedTranscription,
+            summary: result.data.summary,
+            fileName: fileName,
+            bookmarks: [],
+            notes: [],
+          };
+          
+          saveTranscription(transcriptionData);
+          setCurrentTranscriptionId(transcriptionData.id);
+          setBookmarks([]);
+          setNotes([]);
+        }
+        setIsProcessing(false);
+        releaseWakeLock();
       }
-    } finally {
+    } catch (error: any) {
+      console.error("Error processing media:", error);
+      setError(error.message || "Falha ao processar a transcrição.");
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message || "Falha ao processar a transcrição.",
+      });
       setIsProcessing(false);
       releaseWakeLock();
     }
@@ -362,9 +445,25 @@ export default function Home() {
               <p className="text-muted-foreground mb-4">
                 Grave um áudio ou envie um arquivo de mídia. Nossa IA irá transcrever, corrigir e identificar os locutores para você.
               </p>
-              <div className="flex items-center space-x-2 mb-6">
-                <Switch id="summary-switch" checked={generateSummary} onCheckedChange={setGenerateSummary} />
-                <Label htmlFor="summary-switch">Gerar ata da reunião</Label>
+              <div className="space-y-4 mb-6">
+                <div className="flex items-center space-x-2">
+                  <Switch id="summary-switch" checked={generateSummary} onCheckedChange={setGenerateSummary} />
+                  <Label htmlFor="summary-switch">Gerar ata da reunião</Label>
+                </div>
+                <div className="flex items-center space-x-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <Switch 
+                    id="async-switch" 
+                    checked={useAsyncMode} 
+                    onCheckedChange={setUseAsyncMode}
+                    disabled={isProcessing}
+                  />
+                  <Label htmlFor="async-switch" className="flex-1 cursor-pointer">
+                    <div className="font-medium">Modo Assíncrono (Beta)</div>
+                    <div className="text-sm text-muted-foreground">
+                      Processa em background. Ideal para arquivos grandes.
+                    </div>
+                  </Label>
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Button onClick={handleRecord} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
@@ -401,10 +500,34 @@ export default function Home() {
         {isProcessing && (
           <Card className="flex-grow shadow-lg shadow-primary/10 border-border">
             <CardHeader>
-              <CardTitle className="text-2xl font-headline">Processando...</CardTitle>
+              <CardTitle className="text-2xl font-headline">
+                {useAsyncMode ? '📡 Processando em Background...' : 'Processando...'}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <ProcessingProgress currentStep={processingStep} generateSummary={generateSummary} />
+              {useAsyncMode ? (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <LoadingSpinner />
+                    <div>
+                      <p className="font-medium">Job ID: {currentJobId}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Status: {asyncJob?.status || 'PENDING'}
+                      </p>
+                      {asyncJob?.progress && (
+                        <p className="text-sm text-muted-foreground">
+                          Progresso: {asyncJob.progress.percentage}%
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    A transcrição está sendo processada no servidor. Você pode consultar o status a qualquer momento usando o ID do job.
+                  </p>
+                </div>
+              ) : (
+                <ProcessingProgress currentStep={processingStep} generateSummary={generateSummary} />
+              )}
             </CardContent>
           </Card>
         )}

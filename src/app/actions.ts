@@ -123,12 +123,6 @@ export async function startAsyncTranscription(formData: FormData): Promise<{
       return { jobId: null, error: 'A URL da API não está configurada.' };
     }
 
-    // URL do webhook (será chamada pela API quando terminar)
-    const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhook/transcription`;
-    if (webhookUrl) {
-      apiFormData.append('webhook_url', webhookUrl);
-    }
-
     // Iniciar transcrição assíncrona
     const response = await fetch(`${apiUrl}/api/transcribe/async`, {
       method: 'POST',

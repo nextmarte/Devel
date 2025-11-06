@@ -1,6 +1,6 @@
-# Sistema de Transcrição Assíncrona com Webhook
+# Sistema de Transcrição Assíncrona
 
-Este documento descreve como usar o novo sistema de transcrição assíncrona com webhook implementado na aplicação.
+Este documento descreve como usar o novo sistema de transcrição assíncrona implementado na aplicação.
 
 ## Visão Geral
 
@@ -15,7 +15,7 @@ O sistema oferece agora **dois modos de operação**:
 ### 2. Modo Assíncrono (novo)
 - Funções: `startAsyncTranscription()`, `getAsyncTranscriptionStatus()`, etc.
 - Retorna imediatamente com um `jobId`
-- Usa webhook para notificações
+- Cliente faz polling para consultar status
 - Ideal para arquivos grandes
 - Permite processamento em background
 
@@ -84,7 +84,7 @@ if (success) {
 }
 ```
 
-## Fluxo do Webhook
+## Fluxo de Funcionamento
 
 1. **Cliente inicia transcrição**
    ```
@@ -97,24 +97,15 @@ if (success) {
    Processando áudio...
    ```
 
-3. **Daredevil API chama webhook**
-   ```
-   POST /api/webhook/transcription
-   Headers: x-webhook-secret: [SECRET]
-   Body: { jobId, status: "SUCCESS", result: {...} }
-   ```
-
-4. **Aplicação recebe webhook e processa**
-   ```
-   - Atualiza status do job
-   - Executa fluxos de IA (correção, identificação de falantes, resumo)
-   - Armazena resultado final
-   ```
-
-5. **Cliente consulta resultado**
+3. **Cliente consulta status via polling**
    ```
    GET /api/jobs/[jobId]
-   → Retorna job com resultado processado
+   (A cada 2 segundos automaticamente)
+   ```
+
+4. **Quando concluir (SUCCESS ou FAILURE)**
+   ```
+   Cliente recebe resultado completo
    ```
 
 ## Estados do Job
@@ -177,9 +168,8 @@ Resposta: { success: true, message: string }
 
 ### Receber Webhook (interno)
 ```
-POST /api/webhook/transcription
-Headers: x-webhook-secret: [SECRET]
-Body: { jobId, status, result, error, processingTime }
+GET /api/jobs/[jobId]
+Resposta: { success: true, job: AsyncJob }
 ```
 
 ## Variáveis de Ambiente Necessárias
@@ -188,11 +178,8 @@ Body: { jobId, status, result, error, processingTime }
 # URL da Daredevil API
 NEXT_PUBLIC_DAREDEVIL_API_URL=https://api.daredevil.example.com
 
-# URL da aplicação (para webhook)
+# URL da aplicação
 NEXT_PUBLIC_APP_URL=https://seu-dominio.com
-
-# Secret para validar webhook
-WEBHOOK_SECRET=seu_secret_super_seguro
 ```
 
 ## Exemplo Completo de Uso no Cliente
@@ -274,10 +261,9 @@ export function TranscriptionComponent() {
 
 ## Notas de Segurança
 
-- O webhook valida o `x-webhook-secret` header
-- Garanta que `WEBHOOK_SECRET` está definido e é seguro
-- A URL do webhook pode ser qualquer uma de sua confiança
-- Jobs são armazenados em memória (temporário) e localStorage (cliente)
+- Jobs armazenados em memória e localStorage
+- localStorage persiste apenas no navegador do usuário
+- Nenhum dados sensível é armazenado nos jobs
 
 ## Limpeza de Jobs Antigos
 
@@ -292,13 +278,27 @@ asyncJobStorage.cleanup();
 
 - Jobs armazenados em memória (perdidos ao reiniciar servidor)
 - Para produção, considere usar um banco de dados
-- Webhook não persiste se a aplicação reiniciar durante o processamento
+- Polling não é real-time (delay de 2-5 segundos típico)
 
 ## Próximos Passos
 
-Para melhorar o sistema:
-1. Persistir jobs em banco de dados (PostgreSQL, MongoDB, etc.)
-2. Implementar retry automático se webhook falhar
-3. Adicionar autenticação do usuário aos jobs
-4. Armazenar histórico completo de transcrições
-5. Implementar fila com workers separados (Bull, Celery, etc.)
+Para melhorar em produção:
+
+1. **Persistência em Banco de Dados**
+   - Trocar localStorage por PostgreSQL/MongoDB
+   - Histórico permanente de transcrições
+
+2. **WebSocket Real-time**
+   - Ao invés de polling, usar WebSocket
+   - Atualizações instantâneas
+
+3. **Autenticação por Usuário**
+   - Cada usuário vê seus próprios jobs
+   - Histórico por usuário
+
+4. **Queue System**
+   - Bull, Celery ou similar
+   - Processamento paralelo de múltiplos jobs
+
+5. **Cache Distribuído**
+   - Redis para compartilhar estado entre servidores
