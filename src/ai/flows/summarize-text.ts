@@ -7,7 +7,7 @@
  * - SummarizeTextOutput - The return type for the summarizeText function.
  */
 
-import {ai} from '@/ai/genkit';
+import {generateWithDeepseek} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const SummarizeTextInputSchema = z.object({
@@ -29,14 +29,7 @@ export type SummarizeTextOutput = z.infer<typeof SummarizeTextOutputSchema>;
 export async function summarizeText(
   input: SummarizeTextInput
 ): Promise<SummarizeTextOutput> {
-  return summarizeTextFlow(input);
-}
-
-const summarizeTextPrompt = ai.definePrompt({
-  name: 'summarizeTextPrompt',
-  input: {schema: SummarizeTextInputSchema},
-  output: {schema: SummarizeTextOutputSchema},
-  prompt: `Você é um especialista em criar atas de reunião e resumos detalhados a partir de transcrições de áudio. Sua tarefa é analisar o texto a seguir, que é uma transcrição de uma reunião, e gerar uma ata concisa e bem estruturada em formato Markdown.
+  const prompt = `Você é um especialista em criar atas de reunião e resumos detalhados a partir de transcrições de áudio. Sua tarefa é analisar o texto a seguir, que é uma transcrição de uma reunião, e gerar uma ata concisa e bem estruturada em formato Markdown.
 
 A ata deve incluir:
 - **Título da Reunião:** Um título breve e descritivo.
@@ -48,18 +41,13 @@ A ata deve incluir:
 Use formatação Markdown (negrito, itálico, listas) para tornar a ata clara e legível.
 
 Texto da Transcrição:
-{{{text}}}
-`,
-});
+${input.text}
 
-const summarizeTextFlow = ai.defineFlow(
-  {
-    name: 'summarizeTextFlow',
-    inputSchema: SummarizeTextInputSchema,
-    outputSchema: SummarizeTextOutputSchema,
-  },
-  async input => {
-    const {output} = await summarizeTextPrompt(input);
-    return output!;
-  }
-);
+Responda APENAS com a ata em Markdown, sem explicações ou marcadores de código.`;
+
+  const summary = await generateWithDeepseek(prompt);
+
+  return {
+    summary: summary || '',
+  };
+}

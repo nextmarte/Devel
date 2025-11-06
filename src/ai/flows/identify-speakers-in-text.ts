@@ -8,7 +8,7 @@
  * - IdentifySpeakersOutput - The return type for the identifySpeakers function.
  */
 
-import {ai} from '@/ai/genkit';
+import {generateWithDeepseek} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const IdentifySpeakersInputSchema = z.object({
@@ -26,14 +26,7 @@ const IdentifySpeakersOutputSchema = z.object({
 export type IdentifySpeakersOutput = z.infer<typeof IdentifySpeakersOutputSchema>;
 
 export async function identifySpeakers(input: IdentifySpeakersInput): Promise<IdentifySpeakersOutput> {
-  return identifySpeakersFlow(input);
-}
-
-const identifySpeakersPrompt = ai.definePrompt({
-  name: 'identifySpeakersPrompt',
-  input: {schema: IdentifySpeakersInputSchema},
-  output: {schema: IdentifySpeakersOutputSchema},
-  prompt: `Você é uma IA especialista em identificar locutores em textos transcritos de áudio. Sua tarefa é MUITO importante: identificar APENAS os locutores que realmente falam no áudio.
+  const prompt = `Você é uma IA especialista em identificar locutores em textos transcritos de áudio. Sua tarefa é MUITO importante: identificar APENAS os locutores que realmente falam no áudio.
 
 REGRAS CRÍTICAS:
 1. Um locutor é alguém que FALA e tem suas falas transcritas (com vírgula, dois-pontos, ou início de parágrafo indicando fala direta).
@@ -51,17 +44,14 @@ ANALISE O TEXTO E:
 - Organize por locutor
 - Retorne o texto COMPLETO reorganizado
 
-Texto: {{{text}}}`,
-});
+Texto:
+${input.text}
 
-const identifySpeakersFlow = ai.defineFlow(
-  {
-    name: 'identifySpeakersFlow',
-    inputSchema: IdentifySpeakersInputSchema,
-    outputSchema: IdentifySpeakersOutputSchema,
-  },
-  async input => {
-    const {output} = await identifySpeakersPrompt(input);
-    return output!;
-  }
-);
+Responda APENAS com o texto reorganizado com locutores identificados, sem explicações ou markdown.`;
+
+  const identifiedText = await generateWithDeepseek(prompt);
+
+  return {
+    identifiedText: identifiedText || '',
+  };
+}

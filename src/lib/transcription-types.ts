@@ -41,3 +41,42 @@ export interface TranscriptionHistory {
   transcriptions: TranscriptionData[];
   maxItems: number;
 }
+
+// Types para processamento assíncrono com webhook
+export type AsyncJobStatus = 'PENDING' | 'STARTED' | 'SUCCESS' | 'FAILURE' | 'RETRY' | 'CANCELLED';
+
+export interface AsyncJob {
+  jobId: string;
+  status: AsyncJobStatus;
+  fileName: string;
+  fileSize: number;
+  createdAt: number;
+  updatedAt: number;
+  result?: {
+    rawTranscription: string;
+    correctedTranscription: string;
+    identifiedTranscription: string;
+    summary: string | null;
+    processingTime: number;
+    audioInfo: {
+      format: string;
+      duration: number;
+      sampleRate: number;
+      channels: number;
+      fileSizeMb: number;
+    };
+  };
+  error?: string;
+  progress?: {
+    stage: 'transcribing' | 'correcting' | 'identifying' | 'summarizing' | 'completed';
+    percentage: number;
+  };
+}
+
+export interface WebhookPayload {
+  jobId: string;
+  status: AsyncJobStatus;
+  result?: any;
+  error?: string;
+  processingTime?: number;
+}

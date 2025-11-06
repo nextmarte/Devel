@@ -1,30 +1,44 @@
 import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/google-genai';
+import deepseek, {deepseekChat, deepseekReasoner} from 'genkitx-deepseek';
 import {OpenAI} from 'openai';
 
-// Configurar Deepseek via OpenAI API (compatible)
+export const ai = genkit({
+  plugins: [deepseek({apiKey: process.env.DEEPSEEK_API_KEY})],
+  model: deepseekChat, // Modelo padrão
+});
+
+export const deepseekModel = deepseekChat;
+export const deepseekReasonerModel = deepseekReasoner;
+
+// Direct Deepseek client for bypassing Genkit schema issues
 const deepseekClient = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
   baseURL: 'https://api.deepseek.com/v1',
 });
 
-export const ai = genkit({
-  plugins: [googleAI()],
-  model: 'googleai/gemini-2.5-pro', // Modelo padrão (será sobrescrito em cada chamada)
-});
-
-// Modelo primário: Deepseek
-export const deepseekModel = deepseekClient;
-export const geminiModel = 'googleai/gemini-2.5-pro';
-
-export async function withFallback<T>(
-  primaryFn: () => Promise<T>,
-  fallbackFn: () => Promise<T>
-): Promise<T> {
+// Wrapper function to call Deepseek API directly
+export async function generateWithDeepseek(prompt: string): Promise<string> {
   try {
-    return await primaryFn();
+    const response = await deepseekClient.chat.completions.create({
+      model: 'deepseek-chat',
+      max_tokens: 8000,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    });
+
+    // Extract text from the response
+    const firstChoice = response.choices[0];
+    if (firstChoice && 'message' in firstChoice && firstChoice.message) {
+      return firstChoice.message.content || '';
+    }
+
+    return '';
   } catch (error) {
-    console.warn('Deepseek failed, falling back to Gemini:', error);
-    return await fallbackFn();
+    console.error('Error calling Deepseek:', error);
+    throw error;
   }
 }

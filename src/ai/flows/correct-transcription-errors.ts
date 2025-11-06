@@ -7,7 +7,7 @@
  * - CorrectTranscriptionErrorsOutput - The return type for the correctTranscriptionErrors function.
  */
 
-import {ai} from '@/ai/genkit';
+import {generateWithDeepseek} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const CorrectTranscriptionErrorsInputSchema = z.object({
@@ -31,14 +31,7 @@ export type CorrectTranscriptionErrorsOutput = z.infer<
 export async function correctTranscriptionErrors(
   input: CorrectTranscriptionErrorsInput
 ): Promise<CorrectTranscriptionErrorsOutput> {
-  return correctTranscriptionErrorsFlow(input);
-}
-
-const correctTranscriptionErrorsPrompt = ai.definePrompt({
-  name: 'correctTranscriptionErrorsPrompt',
-  input: {schema: CorrectTranscriptionErrorsInputSchema},
-  output: {schema: CorrectTranscriptionErrorsOutputSchema},
-  prompt: `Você é um especialista em correção de transcrições de áudio em português brasileiro.
+  const prompt = `Você é um especialista em correção de transcrições de áudio em português brasileiro.
 
 TAREFAS:
 1. Corrigir erros gramaticais e de digitação
@@ -55,19 +48,14 @@ REGRAS IMPORTANTES:
 - Preserve gírias e expressões coloquiais quando forem propositais
 - Corrija apenas o necessário para entendimento claro
 
-Transcrição Original: {{{transcription}}}
+Transcrição Original:
+${input.transcription}
 
-Transcrição Corrigida:`,
-});
+Responda APENAS com o texto corrigido, sem explicações ou markdown.`;
 
-const correctTranscriptionErrorsFlow = ai.defineFlow(
-  {
-    name: 'correctTranscriptionErrorsFlow',
-    inputSchema: CorrectTranscriptionErrorsInputSchema,
-    outputSchema: CorrectTranscriptionErrorsOutputSchema,
-  },
-  async input => {
-    const {output} = await correctTranscriptionErrorsPrompt(input);
-    return output!;
-  }
-);
+  const correctedTranscription = await generateWithDeepseek(prompt);
+
+  return {
+    correctedTranscription: correctedTranscription || '',
+  };
+}
