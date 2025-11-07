@@ -5,7 +5,11 @@ import { Mic, Upload, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { processMedia, startAsyncTranscription, getAsyncTranscriptionStatus, cancelAsyncTranscription } from "./actions";
+import {
+  startAsyncTranscription,
+  getAsyncTranscriptionStatus,
+  cancelAsyncTranscription,
+} from './actions';
 import Logo from "@/components/logo";
 import LoadingSpinner from "@/components/loading-spinner";
 import TranscriptionDisplay from "@/components/transcription-display";
@@ -55,16 +59,10 @@ export default function Home() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   
-  // Estados para modo assíncrono (sincronizar com sessionState)
-  const [useAsyncMode, setUseAsyncModeInternal] = useState(false);
+  // Estados para transcrição assíncrona
   const [currentJobId, setCurrentJobIdInternal] = useState<string | null>(null);
   
-  // Wrappers para sincronizar com sessionState
-  const setUseAsyncMode = (value: boolean) => {
-    setUseAsyncModeInternal(value);
-    setSessionState({ useAsyncMode: value });
-  };
-  
+  // Wrapper para sincronizar com sessionState
   const setCurrentJobId = (jobId: string | null) => {
     setCurrentJobIdInternal(jobId);
     setSessionState({ 
@@ -80,7 +78,6 @@ export default function Home() {
     if (isHydrated && sessionState.currentJobId) {
       console.log('🔄 Restaurando job em andamento:', sessionState.currentJobId);
       setCurrentJobIdInternal(sessionState.currentJobId);
-      setUseAsyncModeInternal(sessionState.useAsyncMode);
       setIsProcessing(sessionState.isProcessing);
       setFileName(sessionState.fileName);
       setAudioDuration(sessionState.audioDuration);
@@ -94,20 +91,19 @@ export default function Home() {
   // Debug: Log sempre que os estados mudarem
   useEffect(() => {
     console.log('📊 Estado atual:', {
-      useAsyncMode,
       currentJobId,
       isProcessing,
       isHydrated,
       sessionStateJobId: sessionState.currentJobId,
     });
-  }, [useAsyncMode, currentJobId, isProcessing, isHydrated, sessionState.currentJobId]);
+  }, [currentJobId, isProcessing, isHydrated, sessionState.currentJobId]);
   
   // Ref para evitar chamadas múltiplas do onComplete
   const hasCompletedRef = useRef<Set<string>>(new Set());
 
-  // Hook de polling para modo assíncrono
+  // Hook de polling para transcrição assíncrona
   const { job: asyncJob, isPolling, error: pollingError } = useTranscriptionPolling({
-    jobId: useAsyncMode ? currentJobId : null,
+    jobId: currentJobId,
     sessionId: sessionId,
     onComplete: async (completedJob) => {
       // Prevenir múltiplas chamadas para o mesmo job
@@ -254,90 +250,33 @@ export default function Home() {
       // Manter a tela ligada durante processamento
       await acquireWakeLock();
 
-      if (useAsyncMode) {
-        // Modo assíncrono com polling
-        setProcessingStep('transcribing');
-        const result = await startAsyncTranscription(formData, sessionId);
-        
-        if (result.error) {
-          setError(result.error);
-          setIsProcessing(false);
-          releaseWakeLock();
-          toast({
-            variant: "destructive",
-            title: "Ocorreu um erro",
-            description: result.error,
-          });
-        } else if (result.jobId) {
-          console.log('✅ Job iniciado:', result.jobId);
-          setCurrentJobId(result.jobId);
-          
-          // Salvar informações do arquivo no estado da sessão
-          const file = formData.get('file') as File;
-          setSessionState({
-            currentJobId: result.jobId,
-            isProcessing: true,
-            useAsyncMode: true,
-            fileName: file.name,
-            audioDuration: audioDuration,
-          });
-          
-          // Polling iniciará automaticamente via hook
-        }
-      } else {
-        // Modo síncrono (original)
-        // Simulate step progression
-        setProcessingStep('transcribing');
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const result = await processMedia(formData);
-        
-        if (result.error) {
-          setError(result.error);
-          toast({
-            variant: "destructive",
-            title: "Ocorreu um erro",
-            description: result.error,
-          });
-        } else if (result.data) {
-          setProcessingStep('correcting');
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          setRawTranscription(result.data.rawTranscription);
-          setCorrectedTranscription(result.data.correctedTranscription);
-          
-          setProcessingStep('identifying');
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          setIdentifiedTranscription(result.data.identifiedTranscription);
-          
-          if (generateSummary && result.data.summary) {
-            setProcessingStep('summarizing');
-            await new Promise(resolve => setTimeout(resolve, 300));
-            setSummary(result.data.summary);
-          }
-
-          // Save to history
-          const transcriptionData: TranscriptionData = {
-            id: Date.now().toString(),
-            timestamp: Date.now(),
-            duration: audioDuration,
-            rawTranscription: result.data.rawTranscription,
-            correctedTranscription: result.data.correctedTranscription,
-            identifiedTranscription: result.data.identifiedTranscription,
-            summary: result.data.summary,
-            fileName: fileName,
-            bookmarks: [],
-            notes: [],
-          };
-          
-          saveTranscription(transcriptionData);
-          setCurrentTranscriptionId(transcriptionData.id);
-          setBookmarks([]);
-          setNotes([]);
-        }
+      // Modo assíncrono com polling
+      setProcessingStep('transcribing');
+      const result = await startAsyncTranscription(formData, sessionId);
+      
+      if (result.error) {
+        setError(result.error);
         setIsProcessing(false);
         releaseWakeLock();
+        toast({
+          variant: "destructive",
+          title: "Ocorreu um erro",
+          description: result.error,
+        });
+      } else if (result.jobId) {
+        console.log('✅ Job iniciado:', result.jobId);
+        setCurrentJobId(result.jobId);
+        
+        // Salvar informações do arquivo no estado da sessão
+        const file = formData.get('file') as File;
+        setSessionState({
+          currentJobId: result.jobId,
+          isProcessing: true,
+          fileName: file.name,
+          audioDuration: audioDuration,
+        });
+        
+        // Polling iniciará automaticamente via hook
       }
     } catch (error: any) {
       console.error("Error processing media:", error);
@@ -569,20 +508,6 @@ export default function Home() {
                   <Switch id="summary-switch" checked={generateSummary} onCheckedChange={setGenerateSummary} />
                   <Label htmlFor="summary-switch">Gerar ata da reunião</Label>
                 </div>
-                <div className="flex items-center space-x-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <Switch 
-                    id="async-switch" 
-                    checked={useAsyncMode} 
-                    onCheckedChange={setUseAsyncMode}
-                    disabled={isProcessing}
-                  />
-                  <Label htmlFor="async-switch" className="flex-1 cursor-pointer">
-                    <div className="font-medium">Modo Assíncrono (Beta)</div>
-                    <div className="text-sm text-muted-foreground">
-                      Processa em background. Ideal para arquivos grandes.
-                    </div>
-                  </Label>
-                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Button onClick={handleRecord} disabled={isProcessing} size="lg" className="h-24 text-lg bg-accent text-accent-foreground hover:bg-accent/90">
@@ -620,24 +545,23 @@ export default function Home() {
           <Card className="flex-grow shadow-lg shadow-primary/10 border-border">
             <CardHeader>
               <CardTitle className="text-2xl font-headline">
-                {useAsyncMode ? '📡 Processando em Background...' : 'Processando...'}
+                📡 Processando em Background...
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {useAsyncMode ? (
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <LoadingSpinner />
-                    <div>
-                      <p className="font-medium">Job ID: {currentJobId}</p>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <LoadingSpinner />
+                  <div>
+                    <p className="font-medium">Job ID: {currentJobId}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Status: {asyncJob?.status || 'PENDING'}
+                    </p>
+                    {asyncJob?.progress && (
                       <p className="text-sm text-muted-foreground">
-                        Status: {asyncJob?.status || 'PENDING'}
+                        Progresso: {asyncJob.progress.percentage}%
                       </p>
-                      {asyncJob?.progress && (
-                        <p className="text-sm text-muted-foreground">
-                          Progresso: {asyncJob.progress.percentage}%
-                        </p>
-                      )}
+                    )}
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -701,9 +625,6 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-              ) : (
-                <ProcessingProgress currentStep={processingStep} generateSummary={generateSummary} />
-              )}
             </CardContent>
           </Card>
         )}

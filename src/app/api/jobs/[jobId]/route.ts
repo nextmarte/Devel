@@ -210,6 +210,12 @@ export async function GET(
       console.log(`[GET /api/jobs/${jobId}] 📭 Nenhum evento registrado - isso pode significar que os flows não foram chamados`);
     }
     
+    // ✅ Limpar eventos do tracker quando job completar (SUCCESS ou FAILURE)
+    if (job.status === 'SUCCESS' || job.status === 'FAILURE') {
+      console.log(`[GET /api/jobs/${jobId}] 🧹 Limpando eventos do tracker (job em estado final)`);
+      globalProcessingTracker.clearJob(jobId);
+    }
+    
     return NextResponse.json({
       success: true,
       job,
