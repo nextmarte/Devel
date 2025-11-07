@@ -9,11 +9,13 @@
 
 import {generateWithDeepseek} from '@/ai/genkit';
 import {z} from 'genkit';
+import { globalProcessingTracker } from '@/lib/processing-tracker';
 
 const CorrectTranscriptionErrorsInputSchema = z.object({
   transcription: z
     .string()
     .describe("The transcribed text that needs to be corrected for grammar and contextual errors."),
+  jobId: z.string().optional().describe("ID do job para rastreamento"),
 });
 export type CorrectTranscriptionErrorsInput = z.infer<
   typeof CorrectTranscriptionErrorsInputSchema
@@ -53,7 +55,32 @@ ${input.transcription}
 
 Responda APENAS com o texto corrigido, sem explicações ou markdown.`;
 
+  // Log de início da chamada
+  console.log('[DEEPSEEK] 🚀 Iniciando correção de transcrição');
+  const startTime = Date.now();
+  
+  if (input.jobId) {
+    globalProcessingTracker.addEventForJob(input.jobId, {
+      stage: 'correcting',
+      percentage: 30,
+      message: 'Enviando para Deepseek - Correção de erros',
+      timestamp: Date.now(),
+      details: {
+        deepseekModel: 'deepseek-chat',
+        promptLength: prompt.length,
+      },
+    });
+  }
+
   const correctedTranscription = await generateWithDeepseek(prompt);
+  const responseTime = Date.now() - startTime;
+
+  // Log de conclusão
+  console.log(`[DEEPSEEK] ✅ Correção concluída em ${responseTime}ms`);
+  
+  if (input.jobId) {
+    globalProcessingTracker.logDeepseekCall(input.jobId, 'deepseek-chat', responseTime, 0);
+  }
 
   return {
     correctedTranscription: correctedTranscription || '',

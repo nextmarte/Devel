@@ -6,6 +6,9 @@ const jobs = new Map<string, AsyncJob>();
 export const asyncJobStorage = {
   // Criar um novo job
   createJob(jobId: string, fileName: string, fileSize: number): AsyncJob {
+    console.log(`[STORAGE] 📝 Criando job: ${jobId}`);
+    console.log(`[STORAGE] 📊 Jobs atuais no Map:`, Array.from(jobs.keys()));
+    
     const job: AsyncJob = {
       jobId,
       status: 'PENDING',
@@ -21,6 +24,8 @@ export const asyncJobStorage = {
 
     jobs.set(jobId, job);
     this.persistJob(job);
+    
+    console.log(`[STORAGE] ✅ Job criado. Total de jobs:`, jobs.size);
 
     return job;
   },
@@ -33,9 +38,12 @@ export const asyncJobStorage = {
     error?: string,
     processingTime?: number
   ): AsyncJob | null {
+    console.log(`[STORAGE] 🔄 updateJobStatus chamado para ${jobId} com status ${status}`);
+    
     const job = jobs.get(jobId);
 
     if (!job) {
+      console.log(`[STORAGE] ❌ Job ${jobId} não encontrado no updateJobStatus`);
       return null;
     }
 
@@ -43,10 +51,12 @@ export const asyncJobStorage = {
     job.updatedAt = Date.now();
 
     if (result) {
+      console.log(`[STORAGE] 💾 Salvando result com ${result.rawTranscription?.length || 0} caracteres`);
       job.result = result;
     }
 
     if (error) {
+      console.log(`[STORAGE] ❌ Salvando erro: ${error}`);
       job.error = error;
     }
 
@@ -81,23 +91,40 @@ export const asyncJobStorage = {
 
     jobs.set(jobId, job);
     this.persistJob(job);
+    
+    console.log(`[STORAGE] ✅ Job ${jobId} atualizado:`, { 
+      status: job.status, 
+      hasResult: !!job.result,
+      resultLength: job.result?.rawTranscription?.length || 0 
+    });
 
     return job;
   },
 
   // Buscar um job pelo ID
   getJob(jobId: string): AsyncJob | null {
+    console.log(`[STORAGE] 🔍 Buscando job: ${jobId}`);
+    console.log(`[STORAGE] 📊 Jobs disponíveis:`, Array.from(jobs.keys()));
+    
     const job = jobs.get(jobId);
     if (!job) {
+      console.log(`[STORAGE] ⚠️ Job não encontrado no Map, tentando localStorage...`);
       // Tentar recuperar do localStorage se estiver no cliente
       if (typeof window !== 'undefined') {
         const stored = localStorage.getItem(`job_${jobId}`);
         if (stored) {
-          return JSON.parse(stored);
+          console.log(`[STORAGE] ✅ Job recuperado do localStorage`);
+          const recoveredJob = JSON.parse(stored);
+          // Restaurar no Map
+          jobs.set(jobId, recoveredJob);
+          return recoveredJob;
         }
       }
+      console.log(`[STORAGE] ❌ Job não encontrado em lugar nenhum`);
       return null;
     }
+    
+    console.log(`[STORAGE] ✅ Job encontrado no Map com status:`, job.status);
     return job;
   },
 

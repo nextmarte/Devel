@@ -1,0 +1,12 @@
+$ next dev --turbopack -p 8565
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::8565
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::8565)
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 8565
+}
+[?25h

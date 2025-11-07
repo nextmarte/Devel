@@ -45,6 +45,21 @@ export interface TranscriptionHistory {
 // Types para processamento assíncrono
 export type AsyncJobStatus = 'PENDING' | 'STARTED' | 'SUCCESS' | 'FAILURE' | 'RETRY' | 'CANCELLED';
 
+export type ProcessingStage = 'transcribing' | 'correcting' | 'identifying' | 'summarizing' | 'deepseek_call' | 'completed';
+
+export interface ProcessingEvent {
+  stage: ProcessingStage;
+  percentage: number;
+  message: string;
+  timestamp: number;
+  details?: {
+    deepseekModel?: string;
+    promptLength?: number;
+    responseTime?: number;
+    tokenCount?: number;
+  };
+}
+
 export interface AsyncJob {
   jobId: string;
   status: AsyncJobStatus;
@@ -68,7 +83,8 @@ export interface AsyncJob {
   };
   error?: string;
   progress?: {
-    stage: 'transcribing' | 'correcting' | 'identifying' | 'summarizing' | 'completed';
+    stage: ProcessingStage;
     percentage: number;
   };
+  processingEvents?: ProcessingEvent[];
 }

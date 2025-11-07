@@ -5,7 +5,7 @@ import { Mic, Upload, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { processMedia, startAsyncTranscription, getAsyncTranscriptionStatus } from "./actions";
+import { processMedia, startAsyncTranscription, getAsyncTranscriptionStatus, cancelAsyncTranscription } from "./actions";
 import Logo from "@/components/logo";
 import LoadingSpinner from "@/components/loading-spinner";
 import TranscriptionDisplay from "@/components/transcription-display";
@@ -16,6 +16,7 @@ import SummaryDisplay from "@/components/summary-display";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import ProcessingProgress, { type ProcessingStep } from "@/components/processing-progress";
+import { ProcessingProgressDetail } from "@/components/processing-progress-detail";
 import DiffView from "@/components/diff-view";
 import SettingsPanel from "@/components/settings-panel";
 import TranscriptionAnalytics from "@/components/transcription-analytics";
@@ -26,10 +27,18 @@ import AppLayout from "@/components/app-layout";
 import AppSidebar from "@/components/app-sidebar";
 import ActionBar from "@/components/action-bar";
 import { TranscriptionData, TranscriptionEdit, Bookmark, Note } from "@/lib/transcription-types";
-import { saveTranscription, updateTranscription } from "@/lib/transcription-storage";
+import { saveTranscription, updateTranscription, removeDuplicates } from "@/lib/transcription-storage";
 import { useTranscriptionPolling } from "@/hooks/use-transcription-polling";
+import { useSessionId } from "@/hooks/use-session-id";
+import { useSessionState } from "@/hooks/use-session-state";
 
 export default function Home() {
+  // Session ID para isolação de usuários
+  const sessionId = useSessionId();
+  
+  // Estado persistente da sessão
+  const { sessionState, setSessionState, clearSessionState, isHydrated } = useSessionState();
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState<ProcessingStep>('transcribing');
   const [rawTranscription, setRawTranscription] = useState<string | null>(null);
@@ -46,47 +55,129 @@ export default function Home() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   
-  // Estados para modo assíncrono
-  const [useAsyncMode, setUseAsyncMode] = useState(false);
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  // Estados para modo assíncrono (sincronizar com sessionState)
+  const [useAsyncMode, setUseAsyncModeInternal] = useState(false);
+  const [currentJobId, setCurrentJobIdInternal] = useState<string | null>(null);
+  
+  // Wrappers para sincronizar com sessionState
+  const setUseAsyncMode = (value: boolean) => {
+    setUseAsyncModeInternal(value);
+    setSessionState({ useAsyncMode: value });
+  };
+  
+  const setCurrentJobId = (jobId: string | null) => {
+    setCurrentJobIdInternal(jobId);
+    setSessionState({ 
+      currentJobId: jobId,
+      isProcessing: jobId !== null,
+    });
+  };
+  
+  // Restaurar estado na hidratação
+  useEffect(() => {
+    console.log('🔍 useEffect restauração - isHydrated:', isHydrated, 'jobId:', sessionState.currentJobId);
+    
+    if (isHydrated && sessionState.currentJobId) {
+      console.log('🔄 Restaurando job em andamento:', sessionState.currentJobId);
+      setCurrentJobIdInternal(sessionState.currentJobId);
+      setUseAsyncModeInternal(sessionState.useAsyncMode);
+      setIsProcessing(sessionState.isProcessing);
+      setFileName(sessionState.fileName);
+      setAudioDuration(sessionState.audioDuration);
+      
+      console.log('✅ Estado restaurado - polling deve iniciar automaticamente');
+    } else if (isHydrated) {
+      console.log('📭 Nenhum job em andamento para restaurar');
+    }
+  }, [isHydrated, sessionState.currentJobId]);
+  
+  // Debug: Log sempre que os estados mudarem
+  useEffect(() => {
+    console.log('📊 Estado atual:', {
+      useAsyncMode,
+      currentJobId,
+      isProcessing,
+      isHydrated,
+      sessionStateJobId: sessionState.currentJobId,
+    });
+  }, [useAsyncMode, currentJobId, isProcessing, isHydrated, sessionState.currentJobId]);
+  
+  // Ref para evitar chamadas múltiplas do onComplete
+  const hasCompletedRef = useRef<Set<string>>(new Set());
 
   // Hook de polling para modo assíncrono
   const { job: asyncJob, isPolling, error: pollingError } = useTranscriptionPolling({
     jobId: useAsyncMode ? currentJobId : null,
-    onComplete: (completedJob) => {
-      console.log('✅ Transcrição concluída!', completedJob);
+    sessionId: sessionId,
+    onComplete: async (completedJob) => {
+      // Prevenir múltiplas chamadas para o mesmo job
+      if (hasCompletedRef.current.has(completedJob.jobId)) {
+        console.log('⚠️ Job já foi processado, ignorando:', completedJob.jobId);
+        return;
+      }
+      hasCompletedRef.current.add(completedJob.jobId);
+      
+      console.log('✅ Transcrição do Daredevil concluída!', completedJob);
+      console.log('📦 Dados do job:', JSON.stringify(completedJob, null, 2));
+      
       if (completedJob.result) {
-        setRawTranscription(completedJob.result.rawTranscription);
-        setCorrectedTranscription(completedJob.result.correctedTranscription);
-        setIdentifiedTranscription(completedJob.result.identifiedTranscription);
-        setSummary(completedJob.result.summary);
+        const transcriptionText = completedJob.result.rawTranscription || '';
+        
+        console.log('📝 Texto da transcrição:', transcriptionText.substring(0, 100));
+        console.log('📦 Result completo:', JSON.stringify(completedJob.result, null, 2));
+        
+        // NOVO: Processar flows de IA
+        console.log('[APP] ✅ Os flows já foram processados no servidor! Apenas usando os resultados...');
+        
+        // Usar os resultados que já vêm prontos do servidor
+        const flowsResult = {
+          success: true,
+          correctedTranscription: completedJob.result.correctedTranscription,
+          identifiedTranscription: completedJob.result.identifiedTranscription,
+          summary: completedJob.result.summary,
+        };
+        
+        // Atualizar estado com os resultados prontos do servidor do servidor
+        console.log('[APP] ✅ Usando resultados já processados no servidor');
+        setRawTranscription(transcriptionText);
+        setCorrectedTranscription(flowsResult.correctedTranscription || transcriptionText);
+        setIdentifiedTranscription(flowsResult.identifiedTranscription || transcriptionText);
+        setSummary(flowsResult.summary || null);
         
         // Salvar no histórico
         const transcriptionData: TranscriptionData = {
           id: completedJob.jobId,
           timestamp: completedJob.createdAt,
           duration: completedJob.result.audioInfo?.duration || audioDuration,
-          rawTranscription: completedJob.result.rawTranscription,
-          correctedTranscription: completedJob.result.correctedTranscription,
-          identifiedTranscription: completedJob.result.identifiedTranscription,
-          summary: completedJob.result.summary,
+          rawTranscription: transcriptionText,
+          correctedTranscription: flowsResult.correctedTranscription || transcriptionText,
+          identifiedTranscription: flowsResult.identifiedTranscription || transcriptionText,
+          summary: flowsResult.summary || null,
           fileName: completedJob.fileName,
           bookmarks: [],
           notes: [],
         };
         
+        console.log('💾 Salvando transcrição:', transcriptionData.id);
         saveTranscription(transcriptionData);
         setCurrentTranscriptionId(transcriptionData.id);
         setBookmarks([]);
         setNotes([]);
+      } else {
+        console.warn('⚠️ Job completou mas sem result!');
       }
+      
       setIsProcessing(false);
+      setCurrentJobId(null); // Limpar jobId para parar polling
+      clearSessionState(); // Limpar estado persistente
       releaseWakeLock();
     },
     onError: (errorMsg) => {
-      console.error('❌ Erro:', errorMsg);
+      console.error('❌ Erro no polling:', errorMsg);
       setError(errorMsg);
       setIsProcessing(false);
+      setCurrentJobId(null); // Limpar jobId para parar polling
+      clearSessionState(); // Limpar estado persistente
       releaseWakeLock();
       toast({
         variant: "destructive",
@@ -102,6 +193,23 @@ export default function Home() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const wakeLockRef = useRef<any>(null);
+
+  // Limpar duplicatas do histórico na montagem
+  useEffect(() => {
+    console.log('🧹 Limpando duplicatas do histórico...');
+    removeDuplicates();
+  }, []);
+  
+  // Mostrar toast quando restaurar sessão
+  useEffect(() => {
+    if (isHydrated && sessionState.currentJobId && sessionState.isProcessing) {
+      toast({
+        title: "Sessão Restaurada",
+        description: `Continuando processamento de ${sessionState.fileName}`,
+        duration: 3000,
+      });
+    }
+  }, [isHydrated]);
 
   // Função para manter a tela ligada durante gravação/processamento
   const acquireWakeLock = async () => {
@@ -149,7 +257,7 @@ export default function Home() {
       if (useAsyncMode) {
         // Modo assíncrono com polling
         setProcessingStep('transcribing');
-        const result = await startAsyncTranscription(formData);
+        const result = await startAsyncTranscription(formData, sessionId);
         
         if (result.error) {
           setError(result.error);
@@ -163,6 +271,17 @@ export default function Home() {
         } else if (result.jobId) {
           console.log('✅ Job iniciado:', result.jobId);
           setCurrentJobId(result.jobId);
+          
+          // Salvar informações do arquivo no estado da sessão
+          const file = formData.get('file') as File;
+          setSessionState({
+            currentJobId: result.jobId,
+            isProcessing: true,
+            useAsyncMode: true,
+            fileName: file.name,
+            audioDuration: audioDuration,
+          });
+          
           // Polling iniciará automaticamente via hook
         }
       } else {
@@ -524,6 +643,63 @@ export default function Home() {
                   <p className="text-sm text-muted-foreground">
                     A transcrição está sendo processada no servidor. Você pode consultar o status a qualquer momento usando o ID do job.
                   </p>
+                  <ProcessingProgressDetail 
+                    events={asyncJob?.processingEvents} 
+                    currentStage={asyncJob?.status}
+                  />
+                  {currentJobId && (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const result = await cancelAsyncTranscription(currentJobId, sessionId);
+                            if (result.error) {
+                              toast({
+                                variant: "destructive",
+                                title: "Erro",
+                                description: result.error,
+                              });
+                            } else {
+                              toast({
+                                title: "Cancelado",
+                                description: "Transcrição cancelada com sucesso.",
+                              });
+                              setIsProcessing(false);
+                              setCurrentJobId(null);
+                              clearSessionState();
+                            }
+                          } catch (err: any) {
+                            toast({
+                              variant: "destructive",
+                              title: "Erro",
+                              description: err.message || "Falha ao cancelar transcrição.",
+                            });
+                          }
+                        }}
+                      >
+                        <Square className="w-4 h-4 mr-2" />
+                        Cancelar
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setIsProcessing(false);
+                          setCurrentJobId(null);
+                          clearSessionState();
+                          toast({
+                            title: "Sessão Limpa",
+                            description: "Estado da sessão foi resetado.",
+                          });
+                        }}
+                      >
+                        Limpar Sessão
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <ProcessingProgress currentStep={processingStep} generateSummary={generateSummary} />

@@ -9,6 +9,7 @@
 
 import {generateWithDeepseek} from '@/ai/genkit';
 import {z} from 'genkit';
+import { globalProcessingTracker } from '@/lib/processing-tracker';
 
 const SummarizeTextInputSchema = z.object({
   text: z
@@ -16,6 +17,7 @@ const SummarizeTextInputSchema = z.object({
     .describe(
       'The transcribed text from which to generate a summary or meeting minutes.'
     ),
+  jobId: z.string().optional().describe("ID do job para rastreamento"),
 });
 export type SummarizeTextInput = z.infer<typeof SummarizeTextInputSchema>;
 
@@ -45,7 +47,30 @@ ${input.text}
 
 Responda APENAS com a ata em Markdown, sem explicações ou marcadores de código.`;
 
+  console.log('[DEEPSEEK] 📝 Gerando resumo/ata');
+  const startTime = Date.now();
+  
+  if (input.jobId) {
+    globalProcessingTracker.addEventForJob(input.jobId, {
+      stage: 'summarizing',
+      percentage: 70,
+      message: 'Enviando para Deepseek - Geração de resumo',
+      timestamp: Date.now(),
+      details: {
+        deepseekModel: 'deepseek-chat',
+        promptLength: prompt.length,
+      },
+    });
+  }
+
   const summary = await generateWithDeepseek(prompt);
+  const responseTime = Date.now() - startTime;
+
+  console.log(`[DEEPSEEK] ✅ Resumo gerado em ${responseTime}ms`);
+  
+  if (input.jobId) {
+    globalProcessingTracker.logDeepseekCall(input.jobId, 'deepseek-chat', responseTime, 0);
+  }
 
   return {
     summary: summary || '',

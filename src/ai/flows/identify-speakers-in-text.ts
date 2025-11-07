@@ -10,9 +10,11 @@
 
 import {generateWithDeepseek} from '@/ai/genkit';
 import {z} from 'genkit';
+import { globalProcessingTracker } from '@/lib/processing-tracker';
 
 const IdentifySpeakersInputSchema = z.object({
   text: z.string().describe('The transcribed text to identify speakers in.'),
+  jobId: z.string().optional().describe("ID do job para rastreamento"),
 });
 export type IdentifySpeakersInput = z.infer<typeof IdentifySpeakersInputSchema>;
 
@@ -49,7 +51,30 @@ ${input.text}
 
 Responda APENAS com o texto reorganizado com locutores identificados, sem explicações ou markdown.`;
 
+  console.log('[DEEPSEEK] 🎤 Identificando locutores');
+  const startTime = Date.now();
+  
+  if (input.jobId) {
+    globalProcessingTracker.addEventForJob(input.jobId, {
+      stage: 'identifying',
+      percentage: 50,
+      message: 'Enviando para Deepseek - Identificação de locutores',
+      timestamp: Date.now(),
+      details: {
+        deepseekModel: 'deepseek-chat',
+        promptLength: prompt.length,
+      },
+    });
+  }
+
   const identifiedText = await generateWithDeepseek(prompt);
+  const responseTime = Date.now() - startTime;
+
+  console.log(`[DEEPSEEK] ✅ Identificação concluída em ${responseTime}ms`);
+  
+  if (input.jobId) {
+    globalProcessingTracker.logDeepseekCall(input.jobId, 'deepseek-chat', responseTime, 0);
+  }
 
   return {
     identifiedText: identifiedText || '',

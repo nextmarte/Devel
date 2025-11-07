@@ -26,8 +26,20 @@ export function saveTranscription(transcription: TranscriptionData): void {
   try {
     const history = getTranscriptionHistory();
     
-    // Add new transcription at the beginning
-    const updatedHistory = [transcription, ...history];
+    // Verificar se já existe uma transcrição com o mesmo ID
+    const existingIndex = history.findIndex(t => t.id === transcription.id);
+    
+    let updatedHistory: TranscriptionData[];
+    if (existingIndex !== -1) {
+      // Atualizar existente ao invés de adicionar duplicata
+      console.log('📝 Atualizando transcrição existente:', transcription.id);
+      updatedHistory = [...history];
+      updatedHistory[existingIndex] = transcription;
+    } else {
+      // Adicionar nova transcrição no início
+      console.log('➕ Adicionando nova transcrição:', transcription.id);
+      updatedHistory = [transcription, ...history];
+    }
     
     // Keep only the last MAX_ITEMS
     const trimmedHistory = updatedHistory.slice(0, MAX_ITEMS);
@@ -95,5 +107,34 @@ export function clearHistory(): void {
     localStorage.removeItem(STORAGE_KEY);
   } catch (error) {
     console.error('Error clearing history:', error);
+  }
+}
+
+export function removeDuplicates(): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const history = getTranscriptionHistory();
+    
+    // Usar Map para remover duplicatas mantendo a primeira ocorrência
+    const uniqueMap = new Map<string, TranscriptionData>();
+    history.forEach(item => {
+      if (!uniqueMap.has(item.id)) {
+        uniqueMap.set(item.id, item);
+      }
+    });
+    
+    const uniqueHistory = Array.from(uniqueMap.values());
+    
+    console.log(`🧹 Removidas ${history.length - uniqueHistory.length} duplicatas`);
+    
+    const historyData: TranscriptionHistory = {
+      transcriptions: uniqueHistory,
+      maxItems: MAX_ITEMS,
+    };
+    
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(historyData));
+  } catch (error) {
+    console.error('Error removing duplicates:', error);
   }
 }
