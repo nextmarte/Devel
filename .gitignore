@@ -43,3 +43,14 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# temporary files and logs
+*.log
+nohup.out
+server.log
+dev-server.log
+
+# test audio files
+*.ogg
+*.mp3
+*.wav

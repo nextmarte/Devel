@@ -35,6 +35,9 @@ import { saveTranscription, updateTranscription, removeDuplicates } from "@/lib/
 import { useTranscriptionPolling } from "@/hooks/use-transcription-polling";
 import { useSessionId } from "@/hooks/use-session-id";
 import { useSessionState } from "@/hooks/use-session-state";
+import { validateFile, estimateMediaDuration, uploadFileWithProgress, getFileInfo } from "@/lib/file-upload-handler";
+import FileUploadProgress from "@/components/file-upload-progress";
+import type { UploadProgress } from "@/lib/file-upload-handler";
 
 export default function Home() {
   // Session ID para isolação de usuários
@@ -58,6 +61,11 @@ export default function Home() {
   const [fileName, setFileName] = useState<string>('');
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  
+  // Estados para progresso de upload
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [fileInfo, setFileInfo] = useState<any>(null);
   
   // Estados para transcrição assíncrona
   const [currentJobId, setCurrentJobIdInternal] = useState<string | null>(null);
@@ -244,6 +252,11 @@ export default function Home() {
     setIdentifiedTranscription(null);
     setSummary(null);
 
+    const file = formData.get('file') as File;
+    const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+    
+    console.log(`📤 [CLIENT] Iniciando processamento - Arquivo: ${file.name}, Tamanho: ${fileSizeMB}MB`);
+
     formData.append('generateSummary', String(generateSummary));
 
     try {
@@ -252,9 +265,13 @@ export default function Home() {
 
       // Modo assíncrono com polling
       setProcessingStep('transcribing');
+      console.log(`📤 [CLIENT] Chamando startAsyncTranscription...`);
       const result = await startAsyncTranscription(formData, sessionId);
       
+      console.log(`📤 [CLIENT] Resultado do upload:`, result);
+      
       if (result.error) {
+        console.error(`❌ [CLIENT] Erro no upload:`, result.error);
         setError(result.error);
         setIsProcessing(false);
         releaseWakeLock();
@@ -264,7 +281,7 @@ export default function Home() {
           description: result.error,
         });
       } else if (result.jobId) {
-        console.log('✅ Job iniciado:', result.jobId);
+        console.log('✅ [CLIENT] Job iniciado:', result.jobId);
         setCurrentJobId(result.jobId);
         
         // Salvar informações do arquivo no estado da sessão
@@ -276,10 +293,16 @@ export default function Home() {
           audioDuration: audioDuration,
         });
         
+        toast({
+          title: "Upload iniciado",
+          description: `Enviando ${file.name} (${fileSizeMB}MB)...`,
+          duration: 3000,
+        });
+        
         // Polling iniciará automaticamente via hook
       }
     } catch (error: any) {
-      console.error("Error processing media:", error);
+      console.error("❌ [CLIENT] Error processing media:", error);
       setError(error.message || "Falha ao processar a transcrição.");
       toast({
         variant: "destructive",
@@ -356,6 +379,18 @@ export default function Home() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Validar arquivo
+      const validation = validateFile(file);
+      if (!validation.isValid) {
+        setError(validation.error || 'Arquivo inválido');
+        toast({
+          variant: "destructive",
+          title: "Arquivo Inválido",
+          description: validation.error,
+        });
+        return;
+      }
+
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
@@ -363,10 +398,10 @@ export default function Home() {
       setAudioUrl(newAudioUrl);
       setFileName(file.name);
 
-      // Get audio duration
-      const audio = new Audio(newAudioUrl);
-      audio.addEventListener('loadedmetadata', () => {
-        setAudioDuration(audio.duration);
+      // Obter duração e informações do arquivo
+      getFileInfo(file).then((info) => {
+        setFileInfo(info);
+        setAudioDuration(info.duration);
       });
 
       const formData = new FormData();
@@ -540,6 +575,21 @@ export default function Home() {
           </Card>
 
           <div className="mt-8 space-y-8">
+
+        {uploadProgress && (
+          <FileUploadProgress
+            fileName={fileInfo?.name || fileName}
+            fileSize={fileInfo?.sizeFormatted || ''}
+            duration={fileInfo?.durationFormatted || ''}
+            uploadProgress={uploadProgress.percentage}
+            isUploading={isUploading}
+            onCancel={() => {
+              setIsUploading(false);
+              setUploadProgress(null);
+              setFileInfo(null);
+            }}
+          />
+        )}
 
         {isProcessing && (
           <Card className="flex-grow shadow-lg shadow-primary/10 border-border">

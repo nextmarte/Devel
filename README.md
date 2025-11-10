@@ -342,10 +342,20 @@ NEXT_PUBLIC_DAREDEVIL_API_URL=https://api.daredevil.com
 
 ## 📝 Documentação Detalhada
 
-- [`POLLING_ARCHITECTURE.md`](./POLLING_ARCHITECTURE.md) - Arquitetura de polling
-- [`MULTI_USER_ISOLATION.md`](./MULTI_USER_ISOLATION.md) - Detalhes de isolamento
-- [`ASYNC_TRANSCRIPTION_QUICK_START.md`](./ASYNC_TRANSCRIPTION_QUICK_START.md) - Quick start
-- [`MULTI_USER_SESSION_IMPLEMENTATION.md`](./MULTI_USER_SESSION_IMPLEMENTATION.md) - ⭐ Implementação Session ID
+### Guias Principais
+- [`docs/guides/POLLING_ARCHITECTURE.md`](./docs/guides/POLLING_ARCHITECTURE.md) - Arquitetura de polling
+- [`docs/guides/MULTI_USER_ISOLATION.md`](./docs/guides/MULTI_USER_ISOLATION.md) - Detalhes de isolamento
+- [`docs/guides/ASYNC_TRANSCRIPTION_QUICK_START.md`](./docs/guides/ASYNC_TRANSCRIPTION_QUICK_START.md) - Quick start
+- [`docs/guides/MULTI_USER_SESSION_IMPLEMENTATION.md`](./docs/guides/MULTI_USER_SESSION_IMPLEMENTATION.md) - ⭐ Implementação Session ID
+- [`docs/async-transcription-guide.md`](./docs/async-transcription-guide.md) - Guia de transcrição assíncrona
+- [`docs/blueprint.md`](./docs/blueprint.md) - Blueprint da arquitetura
+
+### Documentação Adicional
+- [`FEATURES.md`](./FEATURES.md) - Lista completa de funcionalidades
+- [`docs/archive/`](./docs/archive/) - Documentação histórica, investigações e relatórios de bugs
+
+### Scripts de Teste
+- [`scripts/`](./scripts/) - Scripts para testar funcionalidades específicas (isolamento multi-usuário, polling, upload, etc.)
 
 ## 🚀 Deploy
 
@@ -395,6 +405,21 @@ docker run -p 3000:3000 -e NEXT_PUBLIC_DAREDEVIL_API_URL=... transcription-app
 ## 📞 Suporte
 
 Para dúvidas ou issues:
-1. Verifique `IMPLEMENTATION_SUMMARY.md` para changelog
-2. Consulte `MULTI_USER_SESSION_IMPLEMENTATION.md` para detalhes técnicos
+1. Verifique [`docs/archive/IMPLEMENTATION_SUMMARY.md`](./docs/archive/IMPLEMENTATION_SUMMARY.md) para changelog
+2. Consulte [`docs/guides/MULTI_USER_SESSION_IMPLEMENTATION.md`](./docs/guides/MULTI_USER_SESSION_IMPLEMENTATION.md) para detalhes técnicos
 3. Entre em contato com o backend se precisar adicionar campos na API
+
+## 📂 Organização do Projeto
+
+```
+.
+├── src/                    # Código fonte da aplicação
+├── docs/
+│   ├── guides/            # Guias principais e documentação técnica
+│   ├── archive/           # Documentação histórica e investigações
+│   └── *.md              # Guias de uso e otimização
+├── scripts/               # Scripts de teste e debug
+├── README.md             # Este arquivo
+├── FEATURES.md           # Lista de funcionalidades
+└── package.json          # Dependências e scripts npm
+```

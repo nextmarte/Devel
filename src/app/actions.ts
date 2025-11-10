@@ -93,8 +93,207 @@ export async function processMedia(formData: FormData): Promise<{ data: { rawTra
 }
 
 /**
+ * Upload de arquivo com retry e timeout automático
+ * Para arquivos > 50MB, usa chunked upload
+ */
+async function uploadFileToApi(
+  file: File,
+  apiUrl: string,
+  language: string = 'pt',
+  maxRetries: number = 3
+): Promise<{ taskId: string; success: boolean }> {
+  const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB por chunk
+  const TIMEOUT = 5 * 60 * 1000; // 5 minutos de timeout por chunk
+  const INITIAL_RETRY_DELAY = 1000; // 1 segundo
+
+  console.log(`📤 Iniciando upload - Arquivo: ${file.name}, Tamanho: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+
+  // Se arquivo é pequeno (<50MB), fazer upload simples
+  if (file.size <= CHUNK_SIZE) {
+    return uploadSimple(file, apiUrl, language, maxRetries, TIMEOUT);
+  }
+
+  // Para arquivos maiores, usar chunked upload
+  console.log(`📦 Arquivo grande detectado - usando chunked upload (${Math.ceil(file.size / CHUNK_SIZE)} chunks)`);
+  return uploadChunked(file, apiUrl, language, maxRetries, CHUNK_SIZE, TIMEOUT);
+}
+
+/**
+ * Upload simples com retry
+ */
+async function uploadSimple(
+  file: File,
+  apiUrl: string,
+  language: string,
+  maxRetries: number,
+  timeout: number
+): Promise<{ taskId: string; success: boolean }> {
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`📤 Upload simples - Tentativa ${attempt}/${maxRetries}`);
+
+      const apiFormData = new FormData();
+      apiFormData.append('file', file);
+      apiFormData.append('language', language);
+      apiFormData.append('webhook_url', '');
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      const response = await fetch(`${apiUrl}/api/transcribe/async`, {
+        method: 'POST',
+        body: apiFormData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Status ${response.status}: ${response.statusText}`);
+      }
+
+      const apiResponse = await response.json();
+
+      if (!apiResponse.task_id) {
+        throw new Error('Resposta inválida: sem task_id');
+      }
+
+      console.log(`✅ Upload simples concluído - Task ID: ${apiResponse.task_id}`);
+      return { taskId: apiResponse.task_id, success: true };
+    } catch (error: any) {
+      lastError = error;
+      console.error(`❌ Tentativa ${attempt} falhou:`, error.message);
+
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000); // Backoff exponencial até 30s
+        console.log(`⏳ Aguardando ${delay}ms antes de retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw new Error(`Upload falhou após ${maxRetries} tentativas: ${lastError?.message}`);
+}
+
+/**
+ * Upload por chunks com retry por chunk
+ */
+async function uploadChunked(
+  file: File,
+  apiUrl: string,
+  language: string,
+  maxRetries: number,
+  chunkSize: number,
+  timeout: number
+): Promise<{ taskId: string; success: boolean }> {
+  const totalChunks = Math.ceil(file.size / chunkSize);
+  const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+  console.log(`🔄 Iniciando chunked upload - ID: ${uploadId}, Chunks: ${totalChunks}`);
+
+  // Enviar cada chunk
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    const start = chunkIndex * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const chunk = file.slice(start, end);
+
+    let chunkSuccess = false;
+
+    // Retry por chunk
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`📦 Chunk ${chunkIndex + 1}/${totalChunks} - Tentativa ${attempt}/${maxRetries}`);
+
+        const chunkFormData = new FormData();
+        chunkFormData.append('chunk', chunk);
+        chunkFormData.append('chunkIndex', String(chunkIndex));
+        chunkFormData.append('totalChunks', String(totalChunks));
+        chunkFormData.append('fileName', file.name);
+        chunkFormData.append('uploadId', uploadId);
+        chunkFormData.append('language', language);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        const response = await fetch(`${apiUrl}/api/transcribe/async/chunk`, {
+          method: 'POST',
+          body: chunkFormData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Status ${response.status}: ${response.statusText}`);
+        }
+
+        console.log(`✅ Chunk ${chunkIndex + 1}/${totalChunks} concluído`);
+        chunkSuccess = true;
+        break;
+      } catch (error: any) {
+        console.error(`❌ Chunk ${chunkIndex + 1} falhou:`, error.message);
+
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+          console.log(`⏳ Aguardando ${delay}ms antes de retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    if (!chunkSuccess) {
+      throw new Error(`Chunk ${chunkIndex + 1}/${totalChunks} falhou após ${maxRetries} tentativas`);
+    }
+  }
+
+  // Após todos os chunks, solicitar processamento
+  console.log(`🔗 Todos os chunks enviados - solicitando processamento...`);
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const finalizeFormData = new FormData();
+      finalizeFormData.append('uploadId', uploadId);
+      finalizeFormData.append('fileName', file.name);
+      finalizeFormData.append('language', language);
+
+      const response = await fetch(`${apiUrl}/api/transcribe/async/finalize`, {
+        method: 'POST',
+        body: finalizeFormData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Status ${response.status}: ${response.statusText}`);
+      }
+
+      const apiResponse = await response.json();
+
+      if (!apiResponse.task_id) {
+        throw new Error('Resposta inválida: sem task_id');
+      }
+
+      console.log(`✅ Chunked upload concluído - Task ID: ${apiResponse.task_id}`);
+      return { taskId: apiResponse.task_id, success: true };
+    } catch (error: any) {
+      console.error(`❌ Tentativa ${attempt} de finalização falhou:`, error.message);
+
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+        console.log(`⏳ Aguardando ${delay}ms antes de retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw new Error(`Finalização do chunked upload falhou após ${maxRetries} tentativas`);
+}
+
+/**
  * Inicia uma transcrição assíncrona usando o endpoint /api/transcribe/async
  * Retorna imediatamente com o jobId para que o cliente possa consultar o status
+ * 
+ * OTIMIZADO: Upload com retry automático, timeout aumentado, e suporte a chunked upload
  */
 export async function startAsyncTranscription(
   formData: FormData,
@@ -116,65 +315,25 @@ export async function startAsyncTranscription(
     // Criar registro local do job
     asyncJobStorage.createJob(jobId, file.name, file.size);
 
-    // Preparar FormData para enviar à API
-    const apiFormData = new FormData();
-    apiFormData.append('file', file);
-    apiFormData.append('language', 'pt');
-    // webhook_url vazio = sem webhook (apenas polling)
-    apiFormData.append('webhook_url', '');
-
     const apiUrl = process.env.NEXT_PUBLIC_DAREDEVIL_API_URL;
     if (!apiUrl) {
       return { jobId: null, error: 'A URL da API não está configurada.' };
     }
 
-    // Iniciar transcrição assíncrona
-    const response = await fetch(`${apiUrl}/api/transcribe/async`, {
-      method: 'POST',
-      body: apiFormData,
-    });
-
-    if (!response.ok) {
-      let errorMessage = `A requisição para a API falhou com o status: ${response.statusText}`;
-      try {
-        const errorText = await response.text();
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || JSON.stringify(errorData);
-        } catch {
-          errorMessage = errorText || errorMessage;
-        }
-      } catch {
-        // Usar mensagem padrão se não conseguir ler a resposta
-      }
-
-      asyncJobStorage.updateJobStatus(jobId, 'FAILURE', undefined, errorMessage);
-      console.error('API Error:', errorMessage);
-
+    // Upload com retry e timeout automático
+    console.log(`🚀 Iniciando upload com retry - Arquivo: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+    const uploadResult = await uploadFileToApi(file, apiUrl, 'pt', 3);
+    
+    if (!uploadResult.success || !uploadResult.taskId) {
+      asyncJobStorage.updateJobStatus(jobId, 'FAILURE', undefined, 'Falha ao fazer upload do arquivo');
       return {
         jobId: null,
-        error: `Falha ao iniciar transcrição: ${errorMessage}`,
-      };
-    }
-
-    const apiResponse = await response.json();
-
-    if (!apiResponse.task_id) {
-      asyncJobStorage.updateJobStatus(
-        jobId,
-        'FAILURE',
-        undefined,
-        'Resposta inválida da API: sem task_id'
-      );
-
-      return {
-        jobId: null,
-        error: 'A API retornou uma resposta inválida.',
+        error: 'Falha ao fazer upload do arquivo para a API.',
       };
     }
 
     // Usar task_id da API como identificador real
-    const realJobId = apiResponse.task_id;
+    const realJobId = uploadResult.taskId;
     
     // Prefixar com sessionId para isolamento de usuários
     const prefixedJobId = sessionId ? `${sessionId}:${realJobId}` : realJobId;

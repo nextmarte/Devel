@@ -33,7 +33,14 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: '550mb',
+      // NOTA: Para aumentar timeout de Server Actions, usar arquivo vercel.json
+      // ou configurar timeout no deployment (ex: Vercel max é 60s)
     },
+  },
+  // Melhorar performance de uploads
+  onDemandEntries: {
+    maxInactiveAge: 60 * 1000,
+    pagesBufferLength: 5,
   },
 };
 
