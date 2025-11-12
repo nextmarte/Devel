@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/components/auth-provider";
+import { ServiceWorkerProvider } from "@/components/service-worker-provider";
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,9 +22,14 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
-        {children}
-        <Toaster />
+        <AuthProvider>
+          <ServiceWorkerProvider>
+            {children}
+            <Toaster />
+          </ServiceWorkerProvider>
+        </AuthProvider>
       </body>
     </html>
   );
+
 }

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, History } from "lucide-react";
+import { ChevronDown, History, Settings } from "lucide-react";
 import Logo from "@/components/logo";
 import TranscriptionHistory from "@/components/transcription-history";
 import { cn } from "@/lib/utils";
 import { TranscriptionData } from "@/lib/transcription-types";
+import { useAuth } from "@/hooks/use-auth";
+import Link from "next/link";
 
 type AppSidebarProps = {
   onRestoreTranscription?: (data: TranscriptionData) => void;
@@ -15,6 +17,7 @@ export default function AppSidebar({
   onRestoreTranscription,
 }: AppSidebarProps) {
   const [historyExpanded, setHistoryExpanded] = useState(true);
+  const { user } = useAuth();
 
   return (
     <div className="flex flex-col h-full">
@@ -50,7 +53,17 @@ export default function AppSidebar({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border p-2">
+      <div className="border-t border-border p-2 space-y-2">
+        {user?.role === 'admin' ? (
+          <Link 
+            href="/admin" 
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-amber-900/30 transition-colors bg-amber-950/20 border border-amber-800/50"
+            title="Painel de Administração"
+          >
+            <Settings size={16} />
+            <span>Painel Admin</span>
+          </Link>
+        ) : null}
         <a 
           href="mailto:marcusantonio@id.uff.br" 
           className="text-xs text-muted-foreground hover:text-primary transition-colors text-center block"

@@ -1,32 +1,58 @@
-# Dockerfile para aplicação Next.js
-FROM node:20-alpine
+# ==================== BUILD STAGE ====================
+FROM oven/bun:latest AS builder
 
-# Diretório de trabalho
 WORKDIR /app
 
-# Copia os arquivos de dependências
-COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
+# Instalar dependências do sistema (incluindo Node para prisma)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Instala as dependências
-RUN npm install
+# Copiar arquivos de dependências
+COPY package.json bun.lockb* package-lock.json* ./
 
-# Copia o restante do código da aplicação
+# Instalar dependências com bun
+RUN bun install --production=false || bun install
+
+# Copiar código-fonte
 COPY . .
 
-# Copia o arquivo .env para o diretório de trabalho
-COPY .env .env
+# Gerar Prisma Client
+RUN bunx prisma generate || true
 
-# Build da aplicação Next.js
-RUN npm run build
+# Build da aplicação
+RUN bun run build
 
-# Verifica se o build foi criado
-RUN ls -la .next || (echo "Build failed - .next directory not found" && exit 1)
+# ==================== RUNTIME STAGE ====================
+FROM node:20-alpine
 
-# Verifica se o build foi criado
-RUN ls -la .next || (echo "Build failed - .next directory not found" && exit 1)
+WORKDIR /app
 
-# Expõe a porta 8565
+# Instalar dependências do sistema necessárias
+RUN apk add --no-cache libc6-compat curl dumb-init postgresql-client
+
+# Copiar dependências do builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package.json ./
+
+# Copiar scripts necessários
+COPY --from=builder /app/prisma ./prisma
+COPY scripts/entrypoint.sh /entrypoint.sh
+
+# Criar usuário não-root
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001 && \
+    chmod +x /entrypoint.sh
+
+USER nextjs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8565}/api/health || exit 1
+
 EXPOSE 8565
 
-# Inicia a aplicação Next.js na porta 8565
-CMD ["npx", "next", "start", "-p", "8565"]
+ENTRYPOINT ["/sbin/dumb-init", "--"]
+CMD ["/entrypoint.sh"]

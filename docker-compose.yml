@@ -1,11 +1,140 @@
+version: '3.8'
+
 services:
+  # ==================== POSTGRESQL ====================
+  postgres:
+    image: postgres:16-alpine
+    container_name: devel-postgres
+    hostname: postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-devel_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devel_password}
+      POSTGRES_DB: ${DB_NAME:-devel_db}
+      POSTGRES_INITDB_ARGS: "-c shared_buffers=256MB -c max_connections=200"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    networks:
+      - devel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-devel_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== REDIS ====================
+  redis:
+    image: redis:7-alpine
+    container_name: devel-redis
+    hostname: redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - devel-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== NEXT.JS APP ====================
   devel-app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devel-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Node
+      NODE_ENV: production
+      PORT: 8565
+
+      # NextAuth
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:8565}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+
+      # Database
+      DATABASE_URL: postgresql://${DB_USER:-devel_user}:${DB_PASSWORD:-devel_password}@postgres:5432/${DB_NAME:-devel_db}
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password}@redis:6379
+
+      # External APIs
+      NEXT_PUBLIC_DAREDEVIL_API_URL: ${NEXT_PUBLIC_DAREDEVIL_API_URL}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+
+      # OAuth Providers
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GITHUB_ID: ${GITHUB_ID}
+      GITHUB_SECRET: ${GITHUB_SECRET}
+
+      # Stripe
+      STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+
+      # Email
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+
     ports:
       - "8565:8565"
-    environment:
-      - NODE_ENV=production
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - NEXT_PUBLIC_DAREDEVIL_API_URL=${NEXT_PUBLIC_DAREDEVIL_API_URL}
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - devel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8565/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped
-    container_name: devel-app
+
+  # ==================== PGADMIN (DEV ONLY) ====================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: devel-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@devel.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    networks:
+      - devel-network
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+    profiles:
+      - dev # Só roda em modo desenvolvimento
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  devel-network:
+    driver: bridge

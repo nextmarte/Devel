@@ -137,7 +137,14 @@ async function uploadSimple(
       const apiFormData = new FormData();
       apiFormData.append('file', file);
       apiFormData.append('language', language);
-      apiFormData.append('webhook_url', '');
+      
+      // ✅ Configurar webhook para receber callbacks do Daredevil
+      const webhookUrl = process.env.NEXT_PUBLIC_APP_URL 
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/transcription`
+        : '';
+      apiFormData.append('webhook_url', webhookUrl);
+      
+      console.log(`🔗 Webhook configurado: ${webhookUrl || '(vazio - usará polling)'}`);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);

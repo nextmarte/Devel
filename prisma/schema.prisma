@@ -1,0 +1,232 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============== AUTHENTICATION ==============
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password_hash String?   // null for OAuth users
+  
+  // OAuth
+  oauth_provider String?   // "google", "github"
+  oauth_id       String?   
+  
+  // Status
+  email_verified Boolean   @default(false)
+  is_active      Boolean   @default(true)
+  
+  // Relationships
+  role_id        String
+  role           Role      @relation(fields: [role_id], references: [id])
+  
+  subscription   Subscription?
+  
+  // Actions
+  transcriptions Transcription[]
+  upload_sessions UploadSession[]
+  usage_logs     UsageLog[]
+  audit_logs     AuditLog[]
+  
+  // Metadata
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  last_login     DateTime?
+  
+  @@index([email])
+  @@index([role_id])
+}
+
+// ============== RBAC ==============
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // "admin", "premium", "free", "trial", "starter", "pro", "enterprise"
+  description String?
+  permissions Json     // ["transcribe", "upload", "export", "history"]
+  
+  users       User[]
+  
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+}
+
+model Permission {
+  id           String   @id @default(cuid())
+  feature_name String   @unique // "transcribe", "upload", "export"
+  description  String
+  category     String   // "core", "premium", "admin"
+  
+  created_at   DateTime @default(now())
+}
+
+// ============== BILLING ==============
+
+model Plan {
+  id               String   @id @default(cuid())
+  name             String   @unique // "Free", "Trial", "Starter", "Pro", "Enterprise"
+  description      String
+  price            Float    // in cents
+  currency         String   @default("USD")
+  billing_interval String   // "month", "year"
+  
+  // Features & Limits (JSON)
+  features         Json     // { "transcribe": true, "maxDuration": 60 }
+  limits           Json     // { "monthlyMinutes": 120, "maxFileSize": 500 }
+  
+  // Stripe
+  stripe_price_id  String?  @unique
+  
+  subscriptions    Subscription[]
+  
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+}
+
+model Subscription {
+  id                    String   @id @default(cuid())
+  user_id               String   @unique
+  user                  User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  plan_id               String
+  plan                  Plan     @relation(fields: [plan_id], references: [id])
+  
+  status                String   // "active", "cancelled", "past_due", "expired"
+  
+  current_period_start  DateTime
+  current_period_end    DateTime
+  
+  // Stripe
+  stripe_subscription_id String?  @unique
+  stripe_customer_id     String?
+  
+  // Cancellation
+  cancel_at_period_end  Boolean  @default(false)
+  cancelled_at          DateTime?
+  
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+  
+  @@index([user_id])
+  @@index([plan_id])
+}
+
+// ============== USAGE TRACKING ==============
+
+model UsageLog {
+  id             String   @id @default(cuid())
+  user_id        String
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  action_type    String   // "transcribe", "upload", "export"
+  
+  // Metadata
+  file_size      Int?     // in bytes
+  duration       Int?     // in seconds
+  cost           Float?   // in credits/money
+  quota_consumed Int      @default(1)
+  
+  metadata       Json?    // additional data
+  
+  timestamp      DateTime @default(now())
+  
+  @@index([user_id, action_type])
+  @@index([timestamp])
+}
+
+// ============== TRANSCRIPTIONS ==============
+
+model Transcription {
+  id              String   @id @default(cuid())
+  user_id         String
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  job_id          String   @unique
+  status          String   // "PENDING", "PROCESSING", "SUCCESS", "FAILED", "CANCELLED"
+  
+  // File info
+  file_name       String
+  file_size       Int
+  file_duration   Int?
+  
+  // Results
+  raw_text        String?  @db.Text
+  corrected_text  String?  @db.Text
+  identified_text String?  @db.Text
+  summary         String?  @db.Text
+  
+  // Metadata
+  language        String   @default("pt")
+  metadata        Json?
+  
+  created_at      DateTime @default(now())
+  completed_at    DateTime?
+  
+  @@index([user_id])
+  @@index([status])
+  @@index([job_id])
+}
+
+// ============== UPLOAD SESSIONS ==============
+
+model UploadSession {
+  id              String   @id @default(cuid())
+  user_id         String
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  job_id          String   @unique
+  file_name       String
+  file_size       Int
+  file_type       String
+  generate_summary Boolean
+  
+  status          String   // "STARTED", "PROCESSING", "COMPLETED", "FAILED"
+  progress        Int      @default(0) // 0-100
+  
+  // Timing
+  started_at      DateTime @default(now())
+  completed_at    DateTime?
+  expires_at      DateTime // For cleanup (30 days)
+  
+  metadata        Json?
+  
+  @@index([user_id])
+  @@index([job_id])
+  @@index([status])
+  @@index([expires_at]) // For cleanup queries
+}
+
+// ============== AUDIT LOGS ==============
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  user_id       String?
+  user          User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  
+  action        String   // "login", "upload", "delete_transcription", etc
+  resource_type String?  // "transcription", "user"
+  resource_id   String?
+  
+  // Request info
+  ip_address    String?
+  user_agent    String?
+  
+  status_code   Int?     // HTTP status code
+  metadata      Json?
+  timestamp     DateTime @default(now())
+  
+  @@index([user_id])
+  @@index([action])
+  @@index([timestamp])
+}

@@ -30,6 +30,26 @@ export type CorrectTranscriptionErrorsOutput = z.infer<
   typeof CorrectTranscriptionErrorsOutputSchema
 >;
 
+/**
+ * Valida que nenhum conteúdo foi perdido na correção
+ */
+function validateCorrectionIntegrity(original: string, corrected: string): { valid: boolean; integrityRatio: number; wordLoss: number } {
+  const originalWords = original.split(/\s+/).filter(w => w.length > 0).length;
+  const correctedWords = corrected.split(/\s+/).filter(w => w.length > 0).length;
+  
+  // A correção pode remover/adicionar um pouco, aceitamos até 10% de diferença
+  const wordLoss = Math.abs(originalWords - correctedWords);
+  const maxAllowedLoss = Math.ceil(originalWords * 0.1);
+  
+  const integrityRatio = (correctedWords / originalWords) * 100;
+  
+  return {
+    valid: wordLoss <= maxAllowedLoss,
+    integrityRatio,
+    wordLoss,
+  };
+}
+
 export async function correctTranscriptionErrors(
   input: CorrectTranscriptionErrorsInput
 ): Promise<CorrectTranscriptionErrorsOutput> {
@@ -44,6 +64,7 @@ TAREFAS:
 6. Ajustar informações contraditórias baseado em contexto
 
 REGRAS IMPORTANTES:
+- ⚠️ NÃO DELETAR CONTEÚDO - Apenas corrigir
 - Não mude o significado ou conteúdo da fala
 - Se houver dúvida sobre uma correção, mantenha o original
 - Melhore a fluidez sem ser invasivo
@@ -72,11 +93,28 @@ Responda APENAS com o texto corrigido, sem explicações ou markdown.`;
     });
   }
 
-  const correctedTranscription = await generateWithDeepseek(prompt);
+  let correctedTranscription = await generateWithDeepseek(prompt, { purpose: 'correct', maxChars: 18000 });
   const responseTime = Date.now() - startTime;
 
   // Log de conclusão
   console.log(`[DEEPSEEK] ✅ Correção concluída em ${responseTime}ms`);
+  
+  // NOVO: Validar integridade da correção
+  const integrity = validateCorrectionIntegrity(input.transcription, correctedTranscription);
+  console.log(`[CORRECTION-INTEGRITY] 📊 Validação:`, {
+    integrityRatio: `${integrity.integrityRatio.toFixed(2)}%`,
+    wordLoss: integrity.wordLoss,
+    valid: integrity.valid,
+  });
+  
+  if (!integrity.valid) {
+    console.warn(`[CORRECTION-INTEGRITY] ⚠️ Possível perda de conteúdo na correção (${integrity.wordLoss} palavras)`);
+    // Se falhou na validação, retornar original como fallback
+    if (integrity.integrityRatio < 80) {
+      console.log(`[CORRECTION] 🔄 Usando original como fallback (perda significativa)`);
+      correctedTranscription = input.transcription;
+    }
+  }
   
   if (input.jobId) {
     globalProcessingTracker.logDeepseekCall(input.jobId, 'deepseek-chat', responseTime, 0);

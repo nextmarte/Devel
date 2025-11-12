@@ -63,7 +63,7 @@ Responda APENAS com a ata em Markdown, sem explicações ou marcadores de códig
     });
   }
 
-  const summary = await generateWithDeepseek(prompt);
+  const summary = await generateWithDeepseek(prompt, { purpose: 'summarize', maxChars: 20000 });
   const responseTime = Date.now() - startTime;
 
   console.log(`[DEEPSEEK] ✅ Resumo gerado em ${responseTime}ms`);

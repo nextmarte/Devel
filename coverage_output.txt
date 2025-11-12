@@ -1,0 +1,142 @@
+bun test v1.2.13 (64ed68c9)
+
+src/__tests__/async-transcription.test.ts:
+
+src/__tests__/integration/integration.test.ts:
+(pass) Upload Flow E2E > Upload Completo > deve completar upload com sucesso do início ao fim
+(pass) Upload Flow E2E > Upload Completo > deve registrar UsageLog ao iniciar upload
+(pass) Upload Flow E2E > Upload Completo > deve salvar transcrição bruta no BD
+(pass) Upload Flow E2E > Upload Completo > deve calcular e armazenar custo corretamente
+(pass) Upload Flow E2E > Upload Completo > deve lidar com arquivo muito grande graciosamente
+(pass) Upload Flow E2E > Upload Completo > deve suportar múltiplos uploads sequenciais do mesmo usuário
+(pass) Upload Flow E2E > Upload Completo > deve processar uploads paralelos corretamente
+(pass) Upload Flow E2E > Upload Completo > deve recuperar após falha no upload
+(pass) Upload Flow E2E > Upload Completo > deve validar file_name antes de salvar
+(pass) Upload Flow E2E > Upload Completo > deve suportar resumo automático se solicitado
+(pass) Upload Flow E2E > Upload Completo > deve atualizar subscription usage após upload
+(pass) User Data Isolation > Isolamento de Dados > usuário A não consegue ver transcrições de usuário B
+(pass) User Data Isolation > Isolamento de Dados > usuário não consegue deletar transcrição de outro usuário
+(pass) User Data Isolation > Isolamento de Dados > usuário não consegue acessar UsageStats de outro usuário
+(pass) User Data Isolation > Isolamento de Dados > múltiplos usuários simultâneos não interferem
+(pass) User Data Isolation > Isolamento de Dados > session expirada não permite acesso a dados
+(pass) Security & Permissions > Segurança > usuário não autenticado não consegue fazer upload
+(pass) Security & Permissions > Segurança > usuário free tier não consegue usar IA features (summarize)
+(pass) Security & Permissions > Segurança > admin consegue acessar dados de qualquer usuário (auditoria)
+(pass) Security & Permissions > Segurança > deve registrar ações sensíveis em AuditLog
+(pass) Security & Permissions > Segurança > tentativas de SQL injection devem ser prevenidas
+(pass) Database Consistency > Integridade do Banco > transcrição e usageLog devem ser criados juntos
+(pass) Database Consistency > Integridade do Banco > deletar transcrição não deve deixar UsageLog órfão
+(pass) Database Consistency > Integridade do Banco > soft delete de transcrição preserva UsageLog
+(pass) Database Consistency > Integridade do Banco > campos calculados devem ser consistentes
+(pass) Database Consistency > Integridade do Banco > transações devem ser ACID-compliant
+(pass) Performance & Rate Limiting > Performance > getUserTranscriptions() deve ser rápido com 1000 transcrições
+(pass) Performance & Rate Limiting > Performance > deve implementar pagination corretamente
+(pass) Performance & Rate Limiting > Performance > usuário livre não consegue fazer 100 uploads/hora
+(pass) Performance & Rate Limiting > Performance > premium user consegue fazer 500 uploads/hora
+(pass) Performance & Rate Limiting > Performance > querycount deve ficar abaixo do limite em operações críticas
+
+src/__tests__/components/components.test.ts:
+(pass) UploadAudioForm Component > Validação de Arquivo > deve validar tamanho máximo de arquivo
+(pass) UploadAudioForm Component > Validação de Arquivo > deve exibir erro se arquivo muito grande
+(pass) UploadAudioForm Component > Interface do Usuário > deve renderizar botão de upload
+(pass) UploadAudioForm Component > Interface do Usuário > deve renderizar checkbox de sumário [1.00ms]
+(pass) UploadAudioForm Component > Interface do Usuário > deve renderizar barra de progresso
+(pass) UploadAudioForm Component > Interface do Usuário > deve mostrar nome do arquivo selecionado
+(pass) UploadAudioForm Component > Interações > deve desabilitar botão durante upload
+(pass) UploadAudioForm Component > Interações > deve mostrar progresso durante upload
+(pass) UploadAudioForm Component > Interações > deve mostrar mensagem de sucesso
+(pass) UploadAudioForm Component > Interações > deve mostrar mensagem de erro em caso de falha
+(pass) UploadAudioForm Component > Interações > deve permitir tentar novamente após erro
+(pass) UploadAudioForm Component > Interações > deve desabilitar botão durante upload
+(pass) UploadAudioForm Component > Interações > deve mostrar progresso durante upload
+(pass) UploadAudioForm Component > Interações > deve mostrar mensagem de sucesso
+(pass) UploadAudioForm Component > Interações > deve mostrar mensagem de erro em caso de falha
+(pass) UploadAudioForm Component > Interações > deve permitir tentar novamente após erro
+(pass) UploadAudioForm Component > Envio de Dados > deve enviar arquivo via FormData
+(pass) UploadAudioForm Component > Envio de Dados > deve enviar sumário = true se checkbox marcado
+(pass) UploadAudioForm Component > Envio de Dados > deve enviar sumário = false se checkbox desmarcado
+(pass) UploadAudioForm Component > Envio de Dados > deve chamar processMediaWithAuth() com FormData
+(pass) UploadAudioForm Component > Estados de Erro > deve exibir erro se nenhum arquivo selecionado
+(pass) UploadAudioForm Component > Estados de Erro > deve exibir erro se tipo inválido
+(pass) UploadAudioForm Component > Estados de Erro > deve exibir erro se arquivo muito grande
+(pass) UploadAudioForm Component > Estados de Erro > deve permitir recuperação de erro
+(pass) UploadAudioForm Component > Acessibilidade - UploadAudioForm > deve ter label para input de arquivo
+(pass) UploadAudioForm Component > Acessibilidade - UploadAudioForm > deve ter aria-label no botão de upload
+(pass) UploadAudioForm Component > Acessibilidade - UploadAudioForm > deve mostrar progresso em aria-valuenow
+(pass) TranscriptionsList Component > Exibição de Lista > deve carregar transcrições ao montar
+(pass) TranscriptionsList Component > Exibição de Lista > deve exibir loading enquanto busca dados
+(pass) TranscriptionsList Component > Exibição de Lista > deve exibir lista de transcrições
+(pass) TranscriptionsList Component > Exibição de Lista > deve exibir mensagem vazia se nenhuma transcrição
+(pass) TranscriptionsList Component > Exibição de Lista > deve exibir erro se falhar ao carregar
+(pass) TranscriptionsList Component > Itens da Lista > deve exibir nome do arquivo
+(pass) TranscriptionsList Component > Itens da Lista > deve exibir tamanho do arquivo
+(pass) TranscriptionsList Component > Itens da Lista > deve exibir data de criação
+(pass) TranscriptionsList Component > Itens da Lista > deve exibir resumo truncado
+(pass) TranscriptionsList Component > Itens da Lista > deve exibir status da transcrição
+(pass) TranscriptionsList Component > Ações do Usuário > deve ter botão de visualizar detalhes
+(pass) TranscriptionsList Component > Ações do Usuário > deve ter botão de deletar
+(pass) TranscriptionsList Component > Ações do Usuário > deve pedir confirmação antes de deletar
+(pass) TranscriptionsList Component > Ações do Usuário > deve deletar transcrição se confirmado
+(pass) TranscriptionsList Component > Ações do Usuário > deve remover item da lista após deletar
+(pass) TranscriptionsList Component > Paginação > deve carregar mais itens ao paginar
+(pass) TranscriptionsList Component > Paginação > deve exibir página atual [1.00ms]
+(pass) TranscriptionsList Component > Paginação > deve desabilitar botão anterior na primeira página
+(pass) TranscriptionsList Component > Estados de Erro > deve exibir erro genérico se falha na ação
+(pass) TranscriptionsList Component > Estados de Erro > deve permitir retry em caso de erro
+(pass) TranscriptionsList Component > Acessibilidade - TranscriptionsList > deve ter aria-label em botão de ação
+(pass) TranscriptionsList Component > Acessibilidade - TranscriptionsList > deve ter role="list" no container
+(pass) TranscriptionsList Component > Acessibilidade - TranscriptionsList > deve ter role="listitem" em cada item
+
+src/__tests__/actions/actions-protected.test.ts:
+(pass) Protected Actions > processMediaWithAuth > deve requerer autenticação
+(pass) Protected Actions > processMediaWithAuth > deve aceitar upload com autenticação válida
+(pass) Protected Actions > processMediaWithAuth > deve calcular custo corretamente para Starter plan
+(pass) Protected Actions > processMediaWithAuth > deve calcular custo corretamente para Pro plan
+(pass) Protected Actions > processMediaWithAuth > deve calcular custo corretamente para Enterprise plan
+(pass) Protected Actions > processMediaWithAuth > deve calcular custo corretamente para Free plan (sem desconto) [1.00ms]
+(pass) Protected Actions > processMediaWithAuth > deve rejeitar arquivo > 500MB
+(pass) Protected Actions > processMediaWithAuth > deve rejeitar tipo de arquivo inválido
+(pass) Protected Actions > processMediaWithAuth > deve aceitar tipo de arquivo válido (MP3)
+(pass) Protected Actions > processMediaWithAuth > deve aceitar tipo de arquivo válido (WAV)
+(pass) Protected Actions > processMediaWithAuth > deve registrar em UsageLog quando upload bem-sucedido
+(pass) Protected Actions > processMediaWithAuth > deve registrar em AuditLog com ação upload
+(pass) Protected Actions > getUserTranscriptions > deve retornar transcriptions apenas do usuário autenticado
+(pass) Protected Actions > getUserTranscriptions > deve isolar dados entre usuários diferentes
+(pass) Protected Actions > getUserTranscriptions > deve suportar paginação com skip e take
+(pass) Protected Actions > getUserTranscriptions > deve ordenar por data descendente (mais recentes primeiro)
+(pass) Protected Actions > getUserTranscriptions > deve retornar array vazio se nenhuma transcription encontrada
+(pass) Protected Actions > deleteTranscription > deve deletar transcription se usuário é dono
+(pass) Protected Actions > deleteTranscription > deve rejeitar delete se usuário não é dono
+(pass) Protected Actions > deleteTranscription > deve registrar em AuditLog quando deletar [1.00ms]
+(pass) Protected Actions > deleteTranscription > deve retornar erro 404 se transcription não existe
+(pass) Protected Actions > getUserUsageStats > deve retornar estatísticas dos últimos 30 dias
+(pass) Protected Actions > getUserUsageStats > deve somar fileSize corretamente
+(pass) Protected Actions > getUserUsageStats > deve aplicar desconto baseado no plano
+(pass) Protected Actions > getUserUsageStats > deve retornar zero se nenhum uso nos últimos 30 dias
+(pass) Protected Actions > calculateTranscriptionCost > deve aplicar desconto Free (0%)
+(pass) Protected Actions > calculateTranscriptionCost > deve aplicar desconto Starter (10%)
+(pass) Protected Actions > calculateTranscriptionCost > deve aplicar desconto Pro (30%)
+(pass) Protected Actions > calculateTranscriptionCost > deve aplicar desconto Enterprise (50%)
+(pass) Protected Actions > calculateTranscriptionCost > deve calcular custo para arquivo grande
+(pass) Protected Actions > calculateTranscriptionCost > deve retornar zero para arquivo pequeno
+(pass) Protected Actions > Security & Authorization > deve verificar autenticação antes de processar
+(pass) Protected Actions > Security & Authorization > deve verificar user_id ao deletar transcription
+(pass) Protected Actions > Security & Authorization > deve validar tipos de arquivo aceitos
+(pass) Protected Actions > Security & Authorization > deve validar tamanho máximo de arquivo
+(pass) Protected Actions > Security & Authorization > deve rejeitar requisições sem session
+(pass) Protected Actions > Security & Authorization > deve retornar erro na tentativa de delete não autorizado
+------------------------------------|---------|---------|-------------------
+File                                | % Funcs | % Lines | Uncovered Line #s
+------------------------------------|---------|---------|-------------------
+All files                           |   36.21 |   57.55 |
+ src/__tests__/mocks/index.ts       |  100.00 |  100.00 | 
+ src/__tests__/mocks/nextauth.ts    |   18.18 |   60.22 | 75,83-87,95-100,118-122,131-140,147-150,157-161
+ src/__tests__/mocks/prisma.ts      |   42.86 |   87.25 | 159-162,169-171,178-181,188-195
+ src/__tests__/mocks/react-hooks.ts |   20.00 |   32.61 | 39-59,66-75,82-104,111-114,125-133,140-148,155-158,214-226
+ src/lib/async-job-storage.ts       |    0.00 |    7.69 | 8-29,34-100,105-127,132,137-139,144-148,153-158,163-169,174-183
+------------------------------------|---------|---------|-------------------
+
+ 118 pass
+ 0 fail
+ 144 expect() calls
+Ran 118 tests across 4 files. [40.00ms]

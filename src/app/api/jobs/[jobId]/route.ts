@@ -4,6 +4,7 @@ import { globalProcessingTracker } from '@/lib/processing-tracker';
 import { correctTranscriptionErrors } from '@/ai/flows/correct-transcription-errors';
 import { identifySpeakers } from '@/ai/flows/identify-speakers-in-text';
 import { summarizeText } from '@/ai/flows/summarize-text';
+import { prisma } from '@/lib/prisma';
 
 /**
  * Extrai sessionId do header X-Session-Id ou retorna null
@@ -49,6 +50,46 @@ async function processFlowsServer(jobId: string, rawTranscription: string, gener
     console.log(`[FLOWS-SERVER] ✅ Correção + Identificação concluídas em PARALELO (${parallelDuration}ms)`);
     console.log(`[FLOWS-SERVER] 📊 Speedup estimado: ${Math.round((parallelDuration / (parallelDuration * 2)) * 100)}% mais rápido`);
 
+    // NOVO: Checkpoints de qualidade
+    console.log(`[QUALITY-CHECK] 🔍 Validando resultados...`);
+    
+    const minContentLength = Math.ceil(rawTranscription.length * 0.7);
+    const correctedValid = correctedResult.correctedTranscription.length > minContentLength;
+    const speakersValid = speakersResult.identifiedText.length > minContentLength;
+    const correctedHasContent = correctedResult.correctedTranscription.split(/\s+/).length > 10;
+    const speakersHasSpeakers = /Locutor \d+:/i.test(speakersResult.identifiedText);
+    
+    console.log(`[QUALITY-CHECK] 📋 Resultados:`, {
+      correctedLength: `${correctedResult.correctedTranscription.length} chars`,
+      speakersLength: `${speakersResult.identifiedText.length} chars`,
+      correctedValid,
+      speakersValid,
+      correctedHasContent,
+      speakersHasSpeakers,
+    });
+    
+    // Validar correção
+    if (!correctedValid) {
+      console.warn(`[QUALITY-CHECK] ⚠️ Correção pode estar incompleta: ${correctedResult.correctedTranscription.length} chars (esperado: >~${minContentLength})`);
+      if (!correctedHasContent) {
+        console.log(`[FALLBACK] 🔄 Usando transcrição original (correção inválida)`);
+        correctedResult.correctedTranscription = rawTranscription;
+      }
+    } else {
+      console.log(`[QUALITY-CHECK] ✅ Correção válida (${correctedResult.correctedTranscription.split(/\s+/).length} palavras)`);
+    }
+    
+    // Validar identificação de locutores
+    if (!speakersValid) {
+      console.warn(`[QUALITY-CHECK] ⚠️ Identificação pode estar incompleta: ${speakersResult.identifiedText.length} chars`);
+      if (!speakersHasSpeakers) {
+        console.log(`[FALLBACK] 🔄 Usando transcrição original para identificação`);
+        speakersResult.identifiedText = rawTranscription;
+      }
+    } else {
+      console.log(`[QUALITY-CHECK] ✅ Identificação válida (${speakersHasSpeakers ? 'com locutores' : 'sem locutores marcados'})`);
+    }
+
     let summary: string | null = null;
     if (generateSummary) {
       // Step 3: Gerar sumário (usando texto identificado)
@@ -58,12 +99,18 @@ async function processFlowsServer(jobId: string, rawTranscription: string, gener
         jobId,
       });
       summary = summaryResult.summary;
-      console.log(`[FLOWS-SERVER] ✅ Sumário gerado`);
+      console.log(`[FLOWS-SERVER] ✅ Sumário gerado (${summary?.length || 0} chars)`);
     }
 
     const totalDuration = Date.now() - totalStartTime;
     console.log(`[FLOWS-SERVER] 🎉 Todos os flows completados em ${totalDuration}ms`);
     console.log(`[FLOWS-SERVER] 📈 Tempo total (com paralelo): ${totalDuration}ms`);
+    console.log(`[FLOWS-SERVER] 📊 Resumo final:`, {
+      raw: `${rawTranscription.length} chars`,
+      corrected: `${correctedResult.correctedTranscription.length} chars`,
+      identified: `${speakersResult.identifiedText.length} chars`,
+      summary: summary ? `${summary.length} chars` : 'none',
+    });
 
     return {
       correctedTranscription: correctedResult.correctedTranscription,
@@ -115,9 +162,16 @@ export async function GET(
         const apiUrl = process.env.NEXT_PUBLIC_DAREDEVIL_API_URL;
         // Extrair task_id do jobId prefixado (remover "sessionId:" se presente)
         const taskId = jobId.includes(':') ? jobId.split(':')[1] : jobId;
-        console.log(`[SYNC] 🔄 Sincronizando com API: ${apiUrl}/api/transcribe/async/status/${taskId}`);
+        const statusUrl = `${apiUrl}/api/transcribe/async/status/${taskId}`;
+        console.log(`[SYNC] 🔄 Sincronizando com API: ${statusUrl}`);
         
-        const apiResponse = await fetch(`${apiUrl}/api/transcribe/async/status/${taskId}`);
+        // Adicionar timeout de 10 segundos
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const apiResponse = await fetch(statusUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
         console.log(`[SYNC] 📡 API response status: ${apiResponse.status}`);
         
         if (apiResponse.ok) {
@@ -170,7 +224,20 @@ export async function GET(
             };
             
             console.log(`[SYNC] 💾 Salvando result com ${resultData.rawTranscription.length} caracteres (corrigido: ${resultData.correctedTranscription.length}, identificado: ${resultData.identifiedTranscription.length})`);
+            
+            // NOVO: Capturar eventos ANTES de salvar
+            const processingEvents = globalProcessingTracker.getEventsForJob(jobId);
+            console.log(`[SYNC] 🎯 Capturando ${processingEvents.length} eventos antes de salvar job`);
+            
             asyncJobStorage.updateJobStatus(jobId, 'SUCCESS', resultData);
+            
+            // Adicionar eventos ao job após atualizar
+            const updatedJob = asyncJobStorage.getJob(jobId);
+            if (updatedJob && processingEvents.length > 0) {
+              updatedJob.processingEvents = processingEvents;
+              console.log(`[SYNC] ✅ Eventos anexados ao job`);
+            }
+            
             console.log(`[SYNC] ✅ Job atualizado com sucesso`);
           } else if (status === 'FAILURE') {
             console.log(`[SYNC] ❌ Atualizando job com FAILURE`);
@@ -183,10 +250,21 @@ export async function GET(
           job = asyncJobStorage.getJob(jobId);
           console.log(`[SYNC] ✅ Job sincronizado:`, job?.status);
         } else {
-          console.log(`[SYNC] ⚠️ API retornou status ${apiResponse.status}`);
+          console.warn(`[SYNC] ⚠️ API retornou status ${apiResponse.status} para ${statusUrl}`);
+          // Tentar fazer parse de erro
+          try {
+            const errorData = await apiResponse.json();
+            console.warn(`[SYNC] Erro da API:`, errorData);
+          } catch (e) {
+            // Ignorar erro de parse
+          }
         }
-      } catch (syncError) {
-        console.error(`[SYNC ERROR] ❌ Erro ao sincronizar com API:`, syncError);
+      } catch (syncError: any) {
+        if (syncError.name === 'AbortError') {
+          console.warn(`[SYNC TIMEOUT] ⏱️ Timeout ao sincronizar com API (10s)`);
+        } else {
+          console.error(`[SYNC ERROR] ❌ Erro ao sincronizar com API:`, syncError?.message || syncError);
+        }
         // Continuar mesmo se falhar a sincronização
       }
     }
@@ -197,6 +275,56 @@ export async function GET(
         { error: `Job ${jobId} não encontrado` },
         { status: 404 }
       );
+    }
+
+    // NOVO: Salvar transcrição no banco de dados se tiver resultado e status SUCCESS
+    if (job.status === 'SUCCESS' && job.result?.rawTranscription) {
+      try {
+        // Extrair userId do jobId (formato: user_XXX:task_YYY)
+        const parts = jobId.split(':');
+        const userIdPrefix = parts[0]; // "user_XXX"
+        const userId = userIdPrefix.startsWith('user_') ? userIdPrefix.substring(5) : null;
+
+        if (userId) {
+          // Verificar se transcrição já existe no banco
+          const existingTranscription = await prisma.transcription.findFirst({
+            where: { job_id: jobId },
+          });
+
+          if (!existingTranscription) {
+            console.log(`[GET /api/jobs/${jobId}] 💾 Salvando transcrição no banco para userId: ${userId}`);
+            
+            const savedTranscription = await prisma.transcription.create({
+              data: {
+                user_id: userId,
+                job_id: jobId,
+                file_name: job.fileName || 'transcrição.ogg',
+                status: 'COMPLETED',
+                raw_text: job.result.rawTranscription,
+                corrected_text: job.result.correctedTranscription || job.result.rawTranscription,
+                identified_text: job.result.identifiedTranscription || job.result.rawTranscription,
+                summary: job.result.summary || null,
+                file_size: job.fileSize || 0,
+                file_duration: job.result.audioInfo?.duration || 0,
+                language: 'pt-BR',
+                metadata: {
+                  processingTime: job.result.processingTime || 0,
+                  audioInfo: job.result.audioInfo || {},
+                },
+              },
+            });
+
+            console.log(`[GET /api/jobs/${jobId}] ✅ Transcrição salva no banco: ${savedTranscription.id}`);
+          } else {
+            console.log(`[GET /api/jobs/${jobId}] ℹ️ Transcrição já existe no banco: ${existingTranscription.id}`);
+          }
+        } else {
+          console.warn(`[GET /api/jobs/${jobId}] ⚠️ Não foi possível extrair userId de jobId: ${jobId}`);
+        }
+      } catch (dbError: any) {
+        console.error(`[GET /api/jobs/${jobId}] ❌ Erro ao salvar transcrição no banco:`, dbError.message);
+        // Continuar mesmo se falhar a salvação no banco
+      }
     }
 
     console.log(`[GET /api/jobs/${jobId}] ✅ Retornando job com status:`, job.status);
@@ -214,13 +342,7 @@ export async function GET(
       job.processingEvents = processingEvents;
       console.log(`[GET /api/jobs/${jobId}] 📝 Eventos:`, JSON.stringify(processingEvents, null, 2));
     } else {
-      console.log(`[GET /api/jobs/${jobId}] 📭 Nenhum evento registrado - isso pode significar que os flows não foram chamados`);
-    }
-    
-    // ✅ Limpar eventos do tracker quando job completar (SUCCESS ou FAILURE)
-    if (job.status === 'SUCCESS' || job.status === 'FAILURE') {
-      console.log(`[GET /api/jobs/${jobId}] 🧹 Limpando eventos do tracker (job em estado final)`);
-      globalProcessingTracker.clearJob(jobId);
+      console.log(`[GET /api/jobs/${jobId}] 📭 Nenhum evento registrado`);
     }
     
     return NextResponse.json({
